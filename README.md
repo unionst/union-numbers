@@ -29,11 +29,12 @@ import UnionNumbers
 
 ### Using the numberCounting Modifier
 
-Apply the `numberCounting` modifier to any Text view to enable smooth number animations:
+Apply the `numberCounting` modifier to any view to display animated numeric values. Pass `nil` to disable animation. You should also apply `.contentTransition(.numericText())` for smooth animations:
 
 ```swift
-Text("\(count)")
-    .numberCounting()
+Text("Placeholder")
+    .numberCounting(count)
+    .contentTransition(.numericText())
     .animation(.spring(), value: count)
     .monospacedDigit()
 ```
@@ -48,9 +49,10 @@ struct CounterView: View {
     
     var body: some View {
         VStack {
-            Text("\(count)")
+            Text("Placeholder")
+                .numberCounting(count)
                 .font(.system(size: 48, weight: .bold))
-                .numberCounting()
+                .contentTransition(.numericText())
                 .animation(.spring(), value: count)
                 .monospacedDigit()
             
@@ -69,6 +71,32 @@ struct CounterView: View {
 }
 ```
 
+### With Step Values
+
+```swift
+struct SteppedCounterView: View {
+    @State private var value = 0.0
+    
+    var body: some View {
+        VStack {
+            Text("Placeholder")
+                .numberCounting(
+                    value,
+                    step: 5,
+                    maxSteps: 20
+                )
+                .font(.largeTitle)
+                .contentTransition(.numericText())
+                .animation(.easeInOut, value: value)
+                .monospacedDigit()
+            
+            Slider(value: $value, in: 0...200)
+                .padding()
+        }
+    }
+}
+```
+
 ### Conditional Animation
 
 ```swift
@@ -78,8 +106,9 @@ struct ConditionalAnimationView: View {
     
     var body: some View {
         VStack {
-            Text("Score: \(score)")
-                .numberCounting(animateNumbers)
+            Text("Placeholder")
+                .numberCounting(animateNumbers ? score : nil)
+                .contentTransition(.numericText())
                 .animation(.default, value: score)
             
             Toggle("Animate Numbers", isOn: $animateNumbers)
@@ -93,38 +122,19 @@ struct ConditionalAnimationView: View {
 }
 ```
 
-### With Step Values
-
-```swift
-struct SteppedCounterView: View {
-    @State private var value = 0.0
-    
-    var body: some View {
-        VStack {
-            Text("\(Int(value))")
-                .font(.largeTitle)
-                .numberCounting(
-                    true,
-                    step: 5,
-                    maxSteps: 20
-                )
-                .animation(.easeInOut, value: value)
-                .monospacedDigit()
-            
-            Slider(value: $value, in: 0...200)
-                .padding()
-        }
-    }
-}
-```
-
 ## API Reference
 
 ### numberCounting Modifier
 
 ```swift
 func numberCounting(
-    _ enabled: Bool = true,
+    _ value: Double?,
+    step: Double? = nil,
+    maxSteps: Int? = nil
+) -> some View
+
+func numberCounting(
+    _ value: Int?,
     step: Double? = nil,
     maxSteps: Int? = nil
 ) -> some View
@@ -132,9 +142,16 @@ func numberCounting(
 
 #### Parameters
 
-- `enabled`: Whether to enable number animation (default: `true`)
+- `value`: The numeric value to animate, or `nil` to disable animation
 - `step`: Optional step size for rounding animated values
 - `maxSteps`: Optional maximum number of steps to animate
+
+#### Usage Notes
+
+- Pass `nil` as the value to disable animation and show original content
+- Always apply `.contentTransition(.numericText())` for smooth number transitions
+- Use `.monospacedDigit()` to prevent layout shifts during animation
+- Apply `.animation()` with your desired timing to control animation speed
 
 ## Features
 
@@ -144,6 +161,9 @@ func numberCounting(
 - 🚀 Optimized for SwiftUI's animation system
 - 📱 Support for iOS 17+ content transitions
 - 🔢 Works with both Int and Double values
+- ⚡ Step-based animation control
+- 🎛️ Maximum step limiting
+- 🔄 Easy enable/disable with optional values
 
 ## License
 
