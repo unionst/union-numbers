@@ -15,7 +15,7 @@ Add UnionNumbers to your project using Swift Package Manager:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/yourusername/union-numbers.git", from: "2.0.0")
+    .package(url: "https://github.com/unionst/union-numbers.git", from: "0.0.1")
 ]
 ```
 
