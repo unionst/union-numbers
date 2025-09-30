@@ -267,8 +267,10 @@ import UnionShake
         if !isInitialLoad {
             Task {
                 try? await Task.sleep(
-                    nanoseconds: AnimatedNumberConfig.AnimationTiming
-                        .transitionReset.nanos
+                    for: .seconds(
+                        AnimatedNumberConfig.AnimationTiming
+                            .transitionReset
+                    )
                 )
                 isTransitioningFromZero = false
                 isTransitioningToZero = false

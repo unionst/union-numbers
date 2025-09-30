@@ -249,7 +249,7 @@ public struct NumberCountingAnimationView: View {
                     Task { @MainActor in
                         try? await Task
                             .sleep(
-                                nanoseconds: 100_000_000
+                                for: .seconds(0.1)
                             )
                         shouldShake = false
                     }
@@ -303,7 +303,7 @@ public struct NumberCountingAnimationView: View {
                     Task { @MainActor in
                         try? await Task
                             .sleep(
-                                nanoseconds: 100_000_000
+                                for: .seconds(0.1)
                             )
                         shouldShake = false
                     }

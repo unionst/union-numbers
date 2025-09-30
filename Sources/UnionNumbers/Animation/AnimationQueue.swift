@@ -32,13 +32,13 @@ actor AnimationQueue {
         }
 
         let task = Task {
-            let debounceTime: UInt64 =
+            let debounceTime: TimeInterval =
                 isDeleting
-                ? AnimatedNumberConfig.AnimationTiming.debounce.deletion.nanos
+                ? AnimatedNumberConfig.AnimationTiming.debounce.deletion
                 : (value.count > 3
-                    ? AnimatedNumberConfig.AnimationTiming.debounce.longInput.nanos
-                    : AnimatedNumberConfig.AnimationTiming.debounce.shortInput.nanos)
-            try? await Task.sleep(nanoseconds: debounceTime)
+                    ? AnimatedNumberConfig.AnimationTiming.debounce.longInput
+                    : AnimatedNumberConfig.AnimationTiming.debounce.shortInput)
+            try? await Task.sleep(for: .seconds(debounceTime))
 
             guard !Task.isCancelled else {
                 setProcessing(false)
@@ -67,8 +67,4 @@ actor AnimationQueue {
     private func setLastProcessedValue(_ value: String) {
         lastProcessedValue = value
     }
-}
-
-extension TimeInterval {
-    var nanos: UInt64 { UInt64(self * 1_000_000_000) }
 }
