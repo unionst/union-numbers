@@ -20,6 +20,7 @@ actor AnimationQueue {
     private var isProcessing = false
     private var lastProcessedValue: String?
 
+    @available(macOS 13.0, *)
     func enqueue(_ value: String, apply: @Sendable @escaping (String) async -> Void) async {
         pendingValue = value
 

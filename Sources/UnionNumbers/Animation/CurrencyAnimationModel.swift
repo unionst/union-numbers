@@ -46,6 +46,68 @@ import UnionShake
     private var previousDigits: [AnimatedDigit] = []
     private var isInitialLoad = true
 
+    private struct NumberParts {
+        let raw: String
+        let sanitized: String
+        let integer: String
+        let decimal: String?
+        let hasDecimal: Bool
+        let hasTrailingDecimalSeparator: Bool
+        let digitsOnly: String
+        let doubleValue: Double
+
+        init(_ value: String) {
+            raw = value
+            sanitized = value.replacingOccurrences(of: ",", with: "")
+            hasDecimal = sanitized.contains(".")
+            hasTrailingDecimalSeparator = hasDecimal && sanitized.hasSuffix(".")
+
+            let segments = sanitized.split(
+                separator: ".",
+                omittingEmptySubsequences: false
+            )
+
+            if segments.isEmpty {
+                integer = ""
+                decimal = hasDecimal ? "" : nil
+            } else {
+                integer = String(segments[0])
+                if segments.count >= 2 {
+                    decimal = String(segments[1])
+                } else if hasDecimal {
+                    decimal = ""
+                } else {
+                    decimal = nil
+                }
+            }
+
+            digitsOnly = sanitized.replacingOccurrences(of: ".", with: "")
+            doubleValue = Double(sanitized) ?? 0
+        }
+
+        var normalizedForValidation: String {
+            digitsOnly.isEmpty ? "0" : sanitized
+        }
+
+        var decimalCount: Int {
+            decimal?.count ?? 0
+        }
+
+        var significantDecimalCount: Int {
+            guard let decimal else { return 0 }
+            var count = 0
+            for (index, character) in decimal.enumerated() {
+                if character != "0"
+                    || index < decimal.count - 1
+                    || decimal.count == 1
+                {
+                    count = index + 1
+                }
+            }
+            return count
+        }
+    }
+
     func setValue(
         _ newValue: String,
         minValue: Decimal,
@@ -80,34 +142,23 @@ import UnionShake
         minValue: Decimal,
         maxValue: Decimal
     ) -> (Bool, ValueErrorLimit?) {
-        if newValue.contains(".") {
-            let parts = newValue.split(
-                separator: ".",
-                omittingEmptySubsequences: false
-            )
-            if parts.count == 2 {
-                let integerPart = String(parts[0])
-                let decimalPart = String(parts[1])
+        let parts = NumberParts(newValue)
 
-                if decimalPart.count > formatter.maximumFractionDigits {
-                    return (false, ValueErrorLimit.unknown)
-                }
-            }
-
-        }
-        let valueToValidate =
-            newValue.replacingOccurrences(of: ".", with: "").isEmpty
-            ? "0" : newValue
-
-        let decimal = formatter.number(from: valueToValidate)?.decimalValue
-
-        if decimal == nil {
+        if let decimalPart = parts.decimal,
+            decimalPart.count > formatter.maximumFractionDigits
+        {
             return (false, ValueErrorLimit.unknown)
         }
-        if decimal! < minValue {
-            return (false, ValueErrorLimit.belowMinimum)
+
+        guard let decimalValue = formatter
+            .number(from: parts.normalizedForValidation)?.decimalValue
+        else {
+            return (false, ValueErrorLimit.unknown)
         }
-        if decimal! > maxValue {
+
+        if decimalValue < minValue {
+            return (false, ValueErrorLimit.belowMinimum)
+        } else if decimalValue > maxValue {
             return (false, ValueErrorLimit.aboveMaximum)
         }
         return (true, nil)
@@ -116,42 +167,37 @@ import UnionShake
     private func getDisplayValueAndHasPlaceholderZeros(
         from newValue: String
     ) -> (displayValue: String, hasPlaceholderZeros: Bool) {
-        var displayValue = newValue
-        var hasPlaceholderZeros = false
+        let parts = NumberParts(newValue)
 
-        if newValue.contains(".") {
-            let parts = newValue.split(
-                separator: ".",
-                omittingEmptySubsequences: false
-            )
-            if parts.count == 2 {
-                let integerPart = String(parts[0])
-                let decimalPart = String(parts[1])
-
-                if decimalPart.count > formatter.maximumFractionDigits {
-                    return (displayValue, hasPlaceholderZeros)
-                }
-
-                if decimalPart.count < formatter.maximumFractionDigits {
-                    hasPlaceholderZeros = true
-                    let zerosNeeded =
-                        formatter.maximumFractionDigits - decimalPart.count
-                    displayValue =
-                        integerPart + "." + decimalPart
-                        + String(repeating: "0", count: zerosNeeded)
-                }
-            } else if parts.count == 1 && newValue.hasSuffix(".") {
-                hasPlaceholderZeros = true
-                displayValue =
-                    newValue
-                    + String(
-                        repeating: "0",
-                        count: formatter.maximumFractionDigits
-                    )
-            }
+        guard parts.hasDecimal else {
+            return (newValue, false)
         }
 
-        return (displayValue, hasPlaceholderZeros)
+        if let decimalPart = parts.decimal,
+            decimalPart.count > formatter.maximumFractionDigits
+        {
+            return (newValue, false)
+        }
+
+        if let decimalPart = parts.decimal,
+            decimalPart.count < formatter.maximumFractionDigits
+        {
+            let zerosNeeded =
+                formatter.maximumFractionDigits - decimalPart.count
+            let paddedDecimal =
+                decimalPart + String(repeating: "0", count: zerosNeeded)
+            return ("\(parts.integer).\(paddedDecimal)", true)
+        }
+
+        if parts.hasTrailingDecimalSeparator {
+            let zeros = String(
+                repeating: "0",
+                count: formatter.maximumFractionDigits
+            )
+            return ("\(parts.integer).\(zeros)", true)
+        }
+
+        return (newValue, false)
     }
 
     private func applyValue(
@@ -159,82 +205,57 @@ import UnionShake
         minValue: Decimal,
         maxValue: Decimal
     ) async -> Bool {
+        let rawParts = NumberParts(newValue)
         let (displayValue, hasPlaceholderZeros) =
             self.getDisplayValueAndHasPlaceholderZeros(from: newValue)
+        let displayParts = NumberParts(displayValue)
 
-        let valueToValidate =
-            newValue.replacingOccurrences(of: ".", with: "").isEmpty
-            ? "0" : newValue
-
+        let valueToValidate = rawParts.normalizedForValidation
         let decimal = formatter.number(from: valueToValidate)!.decimalValue
 
         let oldValue = currentValue
         currentValue = displayValue
 
-        let oldClean = oldValue.replacingOccurrences(of: ",", with: "")
-        let newClean = newValue.replacingOccurrences(of: ",", with: "")
-        let oldNum = Double(oldClean) ?? 0
-        let newNum = Double(newClean) ?? 0
+        let oldParts = NumberParts(oldValue)
+
+        let oldNum = oldParts.doubleValue
+        let newNum = rawParts.doubleValue
 
         isTransitioningFromZero = oldNum == 0 && newNum > 0
         isTransitioningToZero = oldNum > 0 && newNum == 0
 
-        isAddingDecimal = !oldValue.contains(".") && newValue.contains(".")
-        isDeletingDecimal = oldValue.contains(".") && !newValue.contains(".")
+        isAddingDecimal = !oldParts.hasDecimal && rawParts.hasDecimal
+        isDeletingDecimal = oldParts.hasDecimal && !rawParts.hasDecimal
 
         var formatted: String
         if hasPlaceholderZeros {
-            let parts = displayValue.split(
-                separator: ".",
-                omittingEmptySubsequences: false
-            )
-            if parts.count >= 1 {
-                let integerPart = String(parts[0])
-                let decimalPart = parts.count > 1 ? String(parts[1]) : ""
-
-                if let formattedInteger = formatter.string(
-                    from: NSDecimalNumber(string: integerPart)
-                ) {
-                    formatted =
-                        formattedInteger
-                        + (decimalPart.isEmpty ? "" : "." + decimalPart)
-                } else {
-                    formatted = displayValue
-                }
+            if let formattedInteger = formatter.string(
+                from: NSDecimalNumber(string: displayParts.integer)
+            ) {
+                let decimalPart = displayParts.decimal ?? ""
+                formatted =
+                    formattedInteger
+                    + (decimalPart.isEmpty ? "" : "." + decimalPart)
+            } else {
+                formatted = displayValue
+            }
+        } else if rawParts.hasDecimal,
+            let decimalPart = rawParts.decimal
+        {
+            if let formattedInteger = formatter.string(
+                from: NSDecimalNumber(string: rawParts.integer)
+            ) {
+                formatted = formattedInteger + "." + decimalPart
             } else {
                 formatted = displayValue
             }
         } else {
-            if newValue.contains(".") {
-                let parts = newValue.split(
-                    separator: ".",
-                    omittingEmptySubsequences: false
-                )
-                if parts.count == 2 {
-                    let integerPart = String(parts[0])
-                    let decimalPart = String(parts[1])
-
-                    if let formattedInteger = formatter.string(
-                        from: NSDecimalNumber(string: integerPart)
-                    ) {
-                        formatted = formattedInteger + "." + decimalPart
-                    } else {
-                        formatted = displayValue
-                    }
-                } else {
-                    formatted =
-                        formatter.string(
-                            from: NSDecimalNumber(decimal: decimal)
-                        ) ?? displayValue
-                }
-            } else {
-                formatted =
-                    formatter.string(from: NSDecimalNumber(decimal: decimal))
-                    ?? displayValue
-            }
+            formatted =
+                formatter.string(from: NSDecimalNumber(decimal: decimal))
+                ?? displayValue
         }
 
-        let isRemovingDigit = newClean.count < oldClean.count
+        let isRemovingDigit = rawParts.sanitized.count < oldParts.sanitized.count
 
         let newDigits = createDigitsWithStableIdentity(
             from: formatted,
@@ -286,62 +307,22 @@ import UnionShake
         return true
     }
 
-    private func removePunctuation(from value: String, removeDot: Bool = true)
-        -> String
-    {
-        let replacedComma = value.replacingOccurrences(of: ",", with: "")
-        if !removeDot {
-            return replacedComma
+    private func onlyDecimalIsChanging(
+        oldParts: NumberParts,
+        newParts: NumberParts
+    ) -> Bool {
+        guard oldParts.integer == newParts.integer else {
+            return false
         }
-        return replacedComma.replacingOccurrences(of: ".", with: "")
+        return oldParts.hasDecimal || newParts.hasDecimal
     }
 
-    private func getIntegerPart(from value: String) -> String {
-        value.contains(".")
-            ? String(value.split(separator: ".")[0]) : value
-    }
-
-    private func onlyDecimalIsChanging(oldValue: String, newValue: String)
-        -> Bool
-    {
-        if !oldValue.contains(".") && newValue.contains(".") {
-            let oldClean = self.removePunctuation(
-                from: oldValue,
-                removeDot: false
-            )
-            let newIntPart = newValue.split(separator: ".").first ?? ""
-            let newIntPartClean = self.removePunctuation(
-                from: String(newIntPart),
-                removeDot: false
-            )
-            return oldClean == newIntPartClean
-        }
-        if oldValue.contains(".") && !newValue.contains(".") {
-            let newClean = self.removePunctuation(
-                from: newValue,
-                removeDot: false
-            )
-            let oldIntPart = oldValue.split(separator: ".").first ?? ""
-            let oldIntPartClean = self.removePunctuation(
-                from: String(oldIntPart),
-                removeDot: false
-            )
-            return newClean == oldIntPartClean
-        }
-        if oldValue.contains(".") && newValue.contains(".") {
-            let oldIntPart = oldValue.split(separator: ".").first ?? ""
-            let newIntPart = newValue.split(separator: ".").first ?? ""
-            return oldIntPart == newIntPart
-        }
-        return false
-    }
-
-    private func isAddingDecimals(oldValue: String, newValue: String) -> Bool {
-        let oldIntegerPart = self.getIntegerPart(from: oldValue)
-        let newIntegerPart = self.getIntegerPart(from: newValue)
-
-        return !oldValue.contains(".") && newValue.contains(".")
-            && oldIntegerPart == newIntegerPart
+    private func isAddingDecimals(
+        oldParts: NumberParts,
+        newParts: NumberParts
+    ) -> Bool {
+        !oldParts.hasDecimal && newParts.hasDecimal
+            && oldParts.integer == newParts.integer
     }
 
     private func isChangingDigits(
@@ -350,30 +331,16 @@ import UnionShake
         isOnlyDecimalChanging: Bool
     ) -> Bool {
         if oldDigitsOnly.isEmpty || newDigitsOnly.isEmpty
-            || oldDigitsOnly == "0"
+            || oldDigitsOnly == "0" || isOnlyDecimalChanging
         {
             return false
         }
 
-        if isOnlyDecimalChanging {
-            return false
+        if oldDigitsOnly.count != newDigitsOnly.count {
+            return true
         }
 
-        let minLen = min(oldDigitsOnly.count, newDigitsOnly.count)
-        for i in 0..<minLen {
-            let oldIndex = oldDigitsOnly.index(
-                oldDigitsOnly.startIndex,
-                offsetBy: i
-            )
-            let newIndex = newDigitsOnly.index(
-                newDigitsOnly.startIndex,
-                offsetBy: i
-            )
-            if oldDigitsOnly[oldIndex] != newDigitsOnly[newIndex] {
-                return true
-            }
-        }
-        return false
+        return zip(oldDigitsOnly, newDigitsOnly).contains { $0 != $1 }
     }
 
     private func createDigitsWithStableIdentity(
@@ -390,22 +357,22 @@ import UnionShake
         var decimalIndex = -1
         var isAfterDecimal = false
 
-        let oldDigitsOnly = self.removePunctuation(from: oldValue)
-        let newDigitsOnly = self.removePunctuation(from: newValue)
+        let oldParts = NumberParts(oldValue)
+        let newParts = NumberParts(newValue)
+        let rawParts = NumberParts(rawValue ?? newValue)
 
-        let oldNum =
-            Double(self.removePunctuation(from: oldValue, removeDot: false))
-            ?? 0
-        let newNum =
-            Double(self.removePunctuation(from: newValue, removeDot: false))
-            ?? 0
+        let oldDigitsOnly = oldParts.digitsOnly
+        let newDigitsOnly = newParts.digitsOnly
+
+        let oldNum = oldParts.doubleValue
+        let newNum = newParts.doubleValue
 
         let isTransitionFromZero = oldNum == 0 && newNum > 0
         let isTransitionToZero = oldNum > 0 && newNum == 0
 
         let isJustAddingDecimal = self.isAddingDecimals(
-            oldValue: oldValue,
-            newValue: newValue
+            oldParts: oldParts,
+            newParts: newParts
         )
 
         let isSingleDigitFromZero =
@@ -413,12 +380,12 @@ import UnionShake
         let isSingleDigitToZero =
             newDigitsOnly == "0" && oldDigitsOnly.count == 1 && oldNum > 0
 
-        let isOnlyDecimalChanging: Bool = self.onlyDecimalIsChanging(
-            oldValue: oldValue,
-            newValue: newValue
+        let isOnlyDecimalChanging = self.onlyDecimalIsChanging(
+            oldParts: oldParts,
+            newParts: newParts
         )
 
-        let hasChangingDigits: Bool = self.isChangingDigits(
+        let hasChangingDigits = self.isChangingDigits(
             oldDigitsOnly: oldDigitsOnly,
             newDigitsOnly: newDigitsOnly,
             isOnlyDecimalChanging: isOnlyDecimalChanging
@@ -481,43 +448,12 @@ import UnionShake
                     }
                 } else if isAfterDecimal && char == "0" {
                     let decimalPosition = charIndex - decimalIndex - 1
+                    let rawDecimalCount = rawParts.decimalCount
+                    isPlaceholder = decimalPosition >= rawDecimalCount
 
-                    let actualRawValue = rawValue ?? newValue
-                    if actualRawValue.contains(".") {
-                        let rawParts = actualRawValue.split(
-                            separator: ".",
-                            omittingEmptySubsequences: false
-                        )
-                        if rawParts.count == 2 {
-                            let rawDecimalPart = String(rawParts[1])
-                            isPlaceholder =
-                                decimalPosition >= rawDecimalPart.count
-
-                            if isPlaceholder && oldValue.contains(".") {
-                                let oldParts = oldValue.split(
-                                    separator: ".",
-                                    omittingEmptySubsequences: false
-                                )
-                                if oldParts.count == 2 {
-                                    let oldDecimalPart = String(oldParts[1])
-                                    var oldRawDecimalCount = 0
-                                    for (i, ch) in oldDecimalPart.enumerated() {
-                                        if ch != "0"
-                                            || i < oldDecimalPart.count - 1
-                                            || oldDecimalPart.count == 1
-                                        {
-                                            oldRawDecimalCount = i + 1
-                                        }
-                                    }
-                                    if decimalPosition < oldRawDecimalCount {
-                                        isReplacingDigit = true
-                                    }
-                                }
-                            }
-                        } else if rawParts.count == 1
-                            && actualRawValue.hasSuffix(".")
-                        {
-                            isPlaceholder = true
+                    if isPlaceholder && oldParts.hasDecimal {
+                        if decimalPosition < oldParts.significantDecimalCount {
+                            isReplacingDigit = true
                         }
                     }
                 }
