@@ -8,7 +8,9 @@
 import CoreText
 import Foundation
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import UnionGradients
 import UnionShake
 

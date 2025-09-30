@@ -8,10 +8,13 @@
 import CoreText
 import Foundation
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import UnionGradients
 import UnionShake
 
+@available(macOS 14.0, *)
 @MainActor
 @Observable class CurrencyAnimationModel {
     enum ValueErrorLimit {
