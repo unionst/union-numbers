@@ -35,7 +35,7 @@ actor AnimationQueue {
         }
 
         let task = Task {
-            let debounceTime: TimeInterval =
+            let debounceTime: Double =
                 isDeleting
                 ? AnimatedNumberConfig.AnimationTiming.debounce.deletion
                 : (value.count > 3
