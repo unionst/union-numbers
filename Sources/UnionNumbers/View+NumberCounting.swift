@@ -101,23 +101,6 @@ private struct NumberCountingView: View {
     }
 }
 
-private nonisolated struct NumberCountingModifier: AnimatableModifier {
-    var value: Double
-    let step: Double?
-    let maxSteps: Int?
-    
-    var animatableData: Double {
-        get { value }
-        set { value = newValue }
-    }
-    
-    func body(content: Content) -> some View {
-        content
-            .hidden()
-            .overlay(Text("\(Int(value))"))
-    }
-}
-
 public struct NumberCountingAnimationView: View {
     @Binding var amount: String
     @Binding var shake: Bool
@@ -125,7 +108,7 @@ public struct NumberCountingAnimationView: View {
     var maxValue: Decimal
     var minValue: Decimal
     
-    var _currency: AnimatedNumberConfig.EAmount.Currency = .USD
+    var _currency: AnimatedNumberConfig.EAmount.Currency? = .USD
     var _formatter: NumberFormatter = .init()
     var _locale: Locale = .current
     var _fontSize: CGFloat = 17
@@ -157,7 +140,7 @@ private struct NumberCountingAnimationModifier: ViewModifier {
     
     let maxValue: Decimal
     let minValue: Decimal
-    let currency: AnimatedNumberConfig.EAmount.Currency
+    let currency: AnimatedNumberConfig.EAmount.Currency?
     let formatter: NumberFormatter
     let locale: Locale
     let fontSize: CGFloat
@@ -206,6 +189,8 @@ private struct NumberCountingAnimationModifier: ViewModifier {
     }
     
     private var prefix: String? {
+        guard let currency else { return nil }
+
         switch currency {
         case .USD, .USDC:
             return "$"
@@ -341,7 +326,7 @@ public extension NumberCountingAnimationView {
         )
     }
     
-    func currency(_ newValue: AnimatedNumberConfig.EAmount.Currency) -> NumberCountingAnimationView {
+    func currency(_ newValue: AnimatedNumberConfig.EAmount.Currency?) -> NumberCountingAnimationView {
         var copy = self
         copy._currency = newValue
         return copy
