@@ -241,7 +241,7 @@ private struct NumberCountingAnimationModifier: ViewModifier {
             return
         }
         
-        let validationResult = animationModel.isValueValid(
+        let validationResult = animationModel.isValueInBounds(
             newValue,
             minValue: minValue,
             maxValue: maxValue
@@ -378,6 +378,6 @@ public extension View {
         step: Double? = nil,
         maxSteps: Int? = nil
     ) -> some View {
-        self
+        self.modifier(EmptyModifier())
     }
 }

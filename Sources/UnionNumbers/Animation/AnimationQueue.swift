@@ -24,7 +24,7 @@ actor AnimationQueue {
     func enqueue(_ value: String, apply: @Sendable @escaping (String) async -> Void) async {
         pendingValue = value
 
-        let isDeleting = (lastProcessedValue?.count ?? 0) > value.count
+        let isDeleting = isDeleting(newValue: value, oldValue: lastProcessedValue)
 
         guard !isProcessing else { return }
 
@@ -35,13 +35,21 @@ actor AnimationQueue {
         }
 
         let task = Task {
-            let debounceTime: Double =
-                isDeleting
-                ? AnimatedNumberConfig.AnimationTiming.debounce.deletion
-                : (value.count > 3
-                    ? AnimatedNumberConfig.AnimationTiming.debounce.longInput
-                    : AnimatedNumberConfig.AnimationTiming.debounce.shortInput)
-            try? await Task.sleep(for: .seconds(debounceTime))
+            let debounceTime: Double
+            
+            if isDeleting {
+                debounceTime = AnimatedNumberConfig.AnimationTiming.debounce.deletion
+            } else if value.count > 3 {
+                debounceTime = AnimatedNumberConfig.AnimationTiming.debounce.longInput
+            } else {
+                debounceTime = AnimatedNumberConfig.AnimationTiming.debounce.shortInput
+            }
+            
+            do {
+                try await Task.sleep(for: .seconds(debounceTime))
+            } catch {
+                print("sleep failed in AnimationQueue enqueue: \(error)")
+            }
 
             guard !Task.isCancelled else {
                 setProcessing(false)
@@ -69,5 +77,10 @@ actor AnimationQueue {
 
     private func setLastProcessedValue(_ value: String) {
         lastProcessedValue = value
+    }
+
+    private func isDeleting(newValue: String, oldValue: String?) -> Bool {
+        guard let oldValue else { return false }
+        return newValue.count < oldValue.count
     }
 }

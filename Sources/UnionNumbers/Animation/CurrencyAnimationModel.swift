@@ -95,12 +95,13 @@ import UnionShake
 
         var significantDecimalCount: Int {
             guard let decimal else { return 0 }
-            var count = 0
+            return countDecimals(decimal)
+        }
+
+        private func countDecimals(_ decimal: String) -> Int {
+            var count: Int = 0
             for (index, character) in decimal.enumerated() {
-                if character != "0"
-                    || index < decimal.count - 1
-                    || decimal.count == 1
-                {
+                if (character != "0" || index < decimal.count - 1 || decimal.count == 1) {
                     count = index + 1
                 }
             }
@@ -119,7 +120,7 @@ import UnionShake
                     in: .whitespacesAndNewlines
                 )
                 let initialValue = trimmed.isEmpty ? "0" : trimmed
-                let isValid = await self.applyValue(
+                let isValueValid = await self.applyValue(
                     initialValue,
                     minValue: minValue,
                     maxValue: maxValue
@@ -127,17 +128,17 @@ import UnionShake
                 return
             }
             await queue.enqueue(newValue) { @MainActor [weak self] value in
-                let isValid =
-                    await self?.applyValue(
-                        value,
-                        minValue: minValue,
-                        maxValue: maxValue
-                    ) ?? false
+                guard let self = self else { return }
+                let isValueValid = await self.applyValue(
+                    value,
+                    minValue: minValue,
+                    maxValue: maxValue
+                )
             }
         }
     }
 
-    public func isValueValid(
+    public func isValueInBounds(
         _ newValue: String,
         minValue: Decimal,
         maxValue: Decimal
