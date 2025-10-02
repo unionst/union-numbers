@@ -10,9 +10,7 @@ import UnionGradients
 struct GradientMask: View {
     var size: CGFloat
     
-    public init (
-        _ size: CGFloat
-    ) {
+    public init (_ size: CGFloat) {
         self.size = size
     }
     
@@ -20,21 +18,13 @@ struct GradientMask: View {
         VStack(
             spacing: 0
         ) {
-            gradient(
-                start: .top,
-                end: .bottom
-            )
-
+            gradient(start: .top, end: .bottom)
             Color.white
-
-            gradient(
-                start: .bottom,
-                end: .top
-            )
+            gradient(start: .bottom, end: .top)
         }
-
+        
     }
-
+    
     @ViewBuilder
     private func gradient(start: UnitPoint, end: UnitPoint) -> some View {
         SmoothGradient(

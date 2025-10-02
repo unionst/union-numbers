@@ -36,15 +36,22 @@ struct SimplifiedDigitView: View, @preconcurrency Equatable {
     }
     
     var transitionAction: AnyTransition {
-        let transitionStatus: TransitionStatus = {
-            if oldDigit == nil {
-                return .increasing
+        let transitionStatus: TransitionStatus
+        
+        if oldDigit == nil {
+            transitionStatus = .increasing
+        } else {
+            let digitValue = digit.char.wholeNumberValue ?? 0
+            let oldDigitValue = oldDigit!.char.wholeNumberValue ?? 0
+            
+            if digitValue == oldDigitValue {
+                transitionStatus = .equal
+            } else if digitValue > oldDigitValue {
+                transitionStatus = .increasing
+            } else {
+                transitionStatus = .decreasing
             }
-            if (digit.char.wholeNumberValue ?? 0) == (oldDigit!.char.wholeNumberValue ?? 0) {
-                return .equal
-            }
-            return (digit.char.wholeNumberValue ?? 0) > (oldDigit!.char.wholeNumberValue ?? 0) ? .increasing : .decreasing
-        }()
+        }
         
         if transitionStatus == .equal {
             return .identity
@@ -61,54 +68,39 @@ struct SimplifiedDigitView: View, @preconcurrency Equatable {
     
         let offset = AnimatedNumberConfig.FontOffset.getOffset(for: fontSize);
         if digit.isPlaceholder {
+            let insertionTransition: AnyTransition
+            let removalTransition: AnyTransition
+
+            if isAddingDecimal {
+                insertionTransition = .offset(y: offset).combined(with: .opacity)
+            } else {
+                insertionTransition = .offset(y: -offset).combined(with: .opacity)
+            }
+
+            if isDeletingDecimal {
+                removalTransition = .offset(y: offset).combined(with: .opacity)
+            } else {
+                removalTransition = .offset(y: -offset).combined(with: .opacity)
+            }
+
             return .asymmetric(
-                insertion: isAddingDecimal
-                ?
-                    .offset(
-                        y: offset
-                    )
-                    .combined(
-                        with: .opacity
-                    )
-                :
-                        .offset(
-                            y: offset * -1
-                        )
-                        .combined(
-                            with: .opacity
-                        ),
-                removal: isDeletingDecimal
-                ?
-                    .offset(
-                        y: offset
-                    )
-                    .combined(
-                        with: .opacity
-                    )
-                :
-                        .offset(
-                            y: offset * -1
-                        )
-                        .combined(
-                            with: .opacity
-                        )
+                insertion: insertionTransition,
+                removal: removalTransition
             )
         }
+
         if oldDigit?.char.wholeNumberValue == nil && isTransitioningToZero && digit.char == "0" {
-            return .asymmetric(
-                insertion: .offset(y: offset * -1)
-                    .combined(with: .opacity),
-                removal: .offset(y: offset)
-                    .combined(with: .opacity)
-            )
+            let insertion = AnyTransition.offset(y: -offset).combined(with: .opacity)
+            let removal   = AnyTransition.offset(y: offset).combined(with: .opacity)
+
+            return .asymmetric(insertion: insertion, removal: removal)
         }
+
         if oldDigit?.char.wholeNumberValue == nil && isTransitioningToZero && !digit.isNew {
-            return .asymmetric(
-                insertion: .offset(y: offset)
-                    .combined(with: .opacity),
-                removal: .offset(y: offset)
-                    .combined(with: .opacity)
-            )
+            let insertion = AnyTransition.offset(y: offset).combined(with: .opacity)
+            let removal   = AnyTransition.offset(y: offset).combined(with: .opacity)
+
+            return .asymmetric(insertion: insertion, removal: removal)
         }
 
         // This has a bug where sometimes the `removal` and `insertion` will be fired together
