@@ -22,7 +22,7 @@ import UnionShake
         case belowMinimum
         case aboveMaximum
     }
-
+    
     var digits: [AnimatedDigit] = []
     var oldDigits: [Int: AnimatedDigit] = [:]
     var isTransitioningFromZero: Bool = false
@@ -30,7 +30,7 @@ import UnionShake
     var isAnimating: Bool = false
     var isAddingDecimal: Bool = false
     var isDeletingDecimal: Bool = false
-
+    
     private let formatter: NumberFormatter = {
         let f = NumberFormatter()
         f.locale = Locale(identifier: "en_US")
@@ -40,12 +40,12 @@ import UnionShake
         f.usesGroupingSeparator = true
         return f
     }()
-
+    
     private let queue = AnimationQueue()
     private var currentValue: String = "0"
     private var previousDigits: [AnimatedDigit] = []
     private var isInitialLoad = true
-
+    
     private struct NumberParts {
         let raw: String
         let sanitized: String
@@ -55,49 +55,44 @@ import UnionShake
         let hasTrailingDecimalSeparator: Bool
         let digitsOnly: String
         let doubleValue: Double
-
+        
         init(_ value: String) {
             raw = value
             sanitized = value.replacingOccurrences(of: ",", with: "")
             hasDecimal = sanitized.contains(".")
             hasTrailingDecimalSeparator = hasDecimal && sanitized.hasSuffix(".")
-
+            
             let segments = sanitized.split(
                 separator: ".",
                 omittingEmptySubsequences: false
             )
-
-            if segments.isEmpty {
-                integer = ""
-                decimal = hasDecimal ? "" : nil
+            
+            integer = String(segments.first ?? "")
+            if segments.count >= 2 {
+                decimal = String(segments[1])
+            } else if hasDecimal {
+                decimal = ""
             } else {
-                integer = String(segments[0])
-                if segments.count >= 2 {
-                    decimal = String(segments[1])
-                } else if hasDecimal {
-                    decimal = ""
-                } else {
-                    decimal = nil
-                }
+                decimal = nil
             }
-
+            
             digitsOnly = sanitized.replacingOccurrences(of: ".", with: "")
             doubleValue = Double(sanitized) ?? 0
         }
-
+        
         var normalizedForValidation: String {
             digitsOnly.isEmpty ? "0" : sanitized
         }
-
+        
         var decimalCount: Int {
             decimal?.count ?? 0
         }
-
+        
         var significantDecimalCount: Int {
             guard let decimal else { return 0 }
             return countDecimals(decimal)
         }
-
+        
         private func countDecimals(_ decimal: String) -> Int {
             var count: Int = 0
             for (index, character) in decimal.enumerated() {
@@ -108,7 +103,17 @@ import UnionShake
             return count
         }
     }
-
+    
+    private struct AnimationData {
+        let isJustAddingDecimal: Bool
+        let isOnlyDecimalChanging: Bool
+        let hasChangingDigits: Bool
+        let isTransitionFromZero: Bool
+        let isTransitionToZero: Bool
+        let isSingleDigitFromZero: Bool
+        let isSingleDigitToZero: Bool
+    }
+    
     func setValue(
         _ newValue: String,
         minValue: Decimal,
@@ -137,26 +142,26 @@ import UnionShake
             }
         }
     }
-
+    
     public func isValueInBounds(
         _ newValue: String,
         minValue: Decimal,
         maxValue: Decimal
     ) -> (Bool, ValueErrorLimit?) {
         let parts = NumberParts(newValue)
-
+        
         if let decimalPart = parts.decimal,
-            decimalPart.count > formatter.maximumFractionDigits
+           decimalPart.count > formatter.maximumFractionDigits
         {
             return (false, ValueErrorLimit.unknown)
         }
-
+        
         guard let decimalValue = formatter
             .number(from: parts.normalizedForValidation)?.decimalValue
         else {
             return (false, ValueErrorLimit.unknown)
         }
-
+        
         if decimalValue < minValue {
             return (false, ValueErrorLimit.belowMinimum)
         } else if decimalValue > maxValue {
@@ -164,85 +169,96 @@ import UnionShake
         }
         return (true, nil)
     }
-
-    private func getDisplayValueAndHasPlaceholderZeros(
-        from newValue: String
-    ) -> (displayValue: String, hasPlaceholderZeros: Bool) {
+    
+    private func getDisplayValue(from newValue: String) -> String {
         let parts = NumberParts(newValue)
-
+        
         guard parts.hasDecimal else {
-            return (newValue, false)
+            return newValue
         }
-
+        
         if let decimalPart = parts.decimal,
-            decimalPart.count > formatter.maximumFractionDigits
-        {
-            return (newValue, false)
+           decimalPart.count > formatter.maximumFractionDigits {
+            return newValue
         }
-
+        
         if let decimalPart = parts.decimal,
-            decimalPart.count < formatter.maximumFractionDigits
-        {
-            let zerosNeeded =
-                formatter.maximumFractionDigits - decimalPart.count
-            let paddedDecimal =
-                decimalPart + String(repeating: "0", count: zerosNeeded)
-            return ("\(parts.integer).\(paddedDecimal)", true)
+           decimalPart.count < formatter.maximumFractionDigits {
+            let zerosNeeded = formatter.maximumFractionDigits - decimalPart.count
+            let paddedDecimal = decimalPart + String(repeating: "0", count: zerosNeeded)
+            return "\(parts.integer).\(paddedDecimal)"
         }
-
+        
         if parts.hasTrailingDecimalSeparator {
-            let zeros = String(
-                repeating: "0",
-                count: formatter.maximumFractionDigits
-            )
-            return ("\(parts.integer).\(zeros)", true)
+            let zeros = String(repeating: "0", count: formatter.maximumFractionDigits)
+            return "\(parts.integer).\(zeros)"
         }
-
-        return (newValue, false)
+        
+        return newValue
     }
-
-    private func applyValue(
-        _ newValue: String,
-        minValue: Decimal,
-        maxValue: Decimal
-    ) async -> Bool {
+    
+    private func checkPlaceholderZeros(in newValue: String) -> Bool {
+        let parts = NumberParts(newValue)
+        
+        guard parts.hasDecimal else {
+            return false
+        }
+        
+        if let decimalPart = parts.decimal,
+           decimalPart.count < formatter.maximumFractionDigits {
+            return true
+        }
+        
+        if parts.hasTrailingDecimalSeparator {
+            return true
+        }
+        
+        return false
+    }
+    
+    private func prepareValues(_ newValue: String) -> (
+        rawParts: NumberParts,
+        displayValue: String,
+        hasPlaceholderZeros: Bool,
+        displayParts: NumberParts,
+        decimal: Decimal,
+        oldValue: String,
+        oldParts: NumberParts
+    ) {
         let rawParts = NumberParts(newValue)
-        let (displayValue, hasPlaceholderZeros) =
-            self.getDisplayValueAndHasPlaceholderZeros(from: newValue)
+        let displayValue = getDisplayValue(from: newValue)
+        let hasPlaceholderZeros = checkPlaceholderZeros(in: newValue)
         let displayParts = NumberParts(displayValue)
-
+        
         let valueToValidate = rawParts.normalizedForValidation
         let decimal = formatter.number(from: valueToValidate)!.decimalValue
-
+        
         let oldValue = currentValue
         currentValue = displayValue
-
         let oldParts = NumberParts(oldValue)
-
-        let oldNum = oldParts.doubleValue
-        let newNum = rawParts.doubleValue
-
-        isTransitioningFromZero = oldNum == 0 && newNum > 0
-        isTransitioningToZero = oldNum > 0 && newNum == 0
-
-        isAddingDecimal = !oldParts.hasDecimal && rawParts.hasDecimal
-        isDeletingDecimal = oldParts.hasDecimal && !rawParts.hasDecimal
-
+        
+        return (rawParts, displayValue, hasPlaceholderZeros, displayParts, decimal, oldValue, oldParts)
+    }
+    
+    private func formatString(
+        rawParts: NumberParts,
+        displayParts: NumberParts,
+        displayValue: String,
+        hasPlaceholderZeros: Bool,
+        decimal: Decimal
+    ) -> String {
         var formatted: String
+        
         if hasPlaceholderZeros {
             if let formattedInteger = formatter.string(
                 from: NSDecimalNumber(string: displayParts.integer)
             ) {
                 let decimalPart = displayParts.decimal ?? ""
-                formatted =
-                    formattedInteger
-                    + (decimalPart.isEmpty ? "" : "." + decimalPart)
+                formatted = formattedInteger + (decimalPart.isEmpty ? "" : "." + decimalPart)
             } else {
                 formatted = displayValue
             }
-        } else if rawParts.hasDecimal,
-            let decimalPart = rawParts.decimal
-        {
+        } else if rawParts.hasDecimal, let decimalPart = rawParts.decimal {
             if let formattedInteger = formatter.string(
                 from: NSDecimalNumber(string: rawParts.integer)
             ) {
@@ -251,22 +267,13 @@ import UnionShake
                 formatted = displayValue
             }
         } else {
-            formatted =
-                formatter.string(from: NSDecimalNumber(decimal: decimal))
-                ?? displayValue
+            formatted = formatter.string(from: NSDecimalNumber(decimal: decimal)) ?? displayValue
         }
-
-        let isRemovingDigit = rawParts.sanitized.count < oldParts.sanitized.count
-
-        let newDigits = createDigitsWithStableIdentity(
-            from: formatted,
-            previousDigits: previousDigits,
-            oldValue: oldValue,
-            newValue: displayValue,
-            rawValue: newValue,
-            isDeletingDecimal: isDeletingDecimal
-        )
-
+        
+        return formatted
+    }
+    
+    private func renderDigits(newDigits: [AnimatedDigit], isRemovingDigit: Bool) {
         if isInitialLoad {
             self.oldDigits = self.digits.reduce(into: [:], { partialResult, animatedDigit in
                 partialResult[animatedDigit.digitIndex] = animatedDigit
@@ -275,10 +282,9 @@ import UnionShake
             isInitialLoad = false
         } else {
             isAnimating = true
-            let animation =
-                isRemovingDigit
-                ? AnimatedNumberConfig.AnimationTiming.spring.removal
-                : AnimatedNumberConfig.AnimationTiming.spring.standard
+            let animation = isRemovingDigit
+            ? AnimatedNumberConfig.AnimationTiming.spring.removal
+            : AnimatedNumberConfig.AnimationTiming.spring.standard
             withAnimation(animation) {
                 self.oldDigits = self.digits.reduce(into: [:], { partialResult, animatedDigit in
                     partialResult[animatedDigit.digitIndex] = animatedDigit
@@ -286,28 +292,74 @@ import UnionShake
                 digits = newDigits
             }
         }
-
-        previousDigits = newDigits
-
-        if !isInitialLoad {
-            Task {
-                try? await Task.sleep(
-                    for: .seconds(
-                        AnimatedNumberConfig.AnimationTiming
-                            .transitionReset
-                    )
+    }
+    
+    private func updateTransitionFlags(
+        oldNum: Double,
+        newNum: Double,
+        oldParts: NumberParts,
+        rawParts: NumberParts
+    ) {
+        isTransitioningFromZero = oldNum == 0 && newNum > 0
+        isTransitioningToZero = oldNum > 0 && newNum == 0
+        isAddingDecimal = !oldParts.hasDecimal && rawParts.hasDecimal
+        isDeletingDecimal = oldParts.hasDecimal && !rawParts.hasDecimal
+    }
+    
+    private func scheduleResetFlags() {
+        Task {
+            try? await Task.sleep(
+                for: .seconds(
+                    AnimatedNumberConfig.AnimationTiming.transitionReset
                 )
-                isTransitioningFromZero = false
-                isTransitioningToZero = false
-                isAnimating = false
-                isAddingDecimal = false
-                isDeletingDecimal = false
-            }
+            )
+            isTransitioningFromZero = false
+            isTransitioningToZero = false
+            isAnimating = false
+            isAddingDecimal = false
+            isDeletingDecimal = false
         }
-
+    }
+    
+    private func applyValue(
+        _ newValue: String,
+        minValue: Decimal,
+        maxValue: Decimal
+    ) async -> Bool {
+        let (rawParts, displayValue, hasPlaceholderZeros, displayParts, decimal, oldValue, oldParts) = prepareValues(newValue)
+        
+        let oldNum = oldParts.doubleValue
+        let newNum = rawParts.doubleValue
+        updateTransitionFlags(oldNum: oldNum, newNum: newNum, oldParts: oldParts, rawParts: rawParts)
+        
+        let formatted = formatString(
+            rawParts: rawParts,
+            displayParts: displayParts,
+            displayValue: displayValue,
+            hasPlaceholderZeros: hasPlaceholderZeros,
+            decimal: decimal
+        )
+        
+        let isRemovingDigit = rawParts.sanitized.count < oldParts.sanitized.count
+        let newDigits = createDigits(
+            from: formatted,
+            previousDigits: previousDigits,
+            oldValue: oldValue,
+            newValue: displayValue,
+            rawValue: newValue,
+            isDeletingDecimal: isDeletingDecimal
+        )
+        
+        renderDigits(newDigits: newDigits, isRemovingDigit: isRemovingDigit)
+        previousDigits = newDigits
+        
+        if !isInitialLoad {
+            scheduleResetFlags()
+        }
+        
         return true
     }
-
+    
     private func onlyDecimalIsChanging(
         oldParts: NumberParts,
         newParts: NumberParts
@@ -317,98 +369,99 @@ import UnionShake
         }
         return oldParts.hasDecimal || newParts.hasDecimal
     }
-
+    
     private func isAddingDecimals(
         oldParts: NumberParts,
         newParts: NumberParts
     ) -> Bool {
         !oldParts.hasDecimal && newParts.hasDecimal
-            && oldParts.integer == newParts.integer
+        && oldParts.integer == newParts.integer
     }
-
+    
     private func isChangingDigits(
         oldDigitsOnly: String,
         newDigitsOnly: String,
         isOnlyDecimalChanging: Bool
     ) -> Bool {
-        if oldDigitsOnly.isEmpty || newDigitsOnly.isEmpty
-            || oldDigitsOnly == "0" || isOnlyDecimalChanging
-        {
+        guard !oldDigitsOnly.isEmpty, !newDigitsOnly.isEmpty, oldDigitsOnly != "0", !isOnlyDecimalChanging
+        else {
             return false
         }
-
+        
         if oldDigitsOnly.count != newDigitsOnly.count {
             return true
         }
-
+        
         return zip(oldDigitsOnly, newDigitsOnly).contains { $0 != $1 }
     }
-
-    private func createDigitsWithStableIdentity(
-        from formatted: String,
-        previousDigits: [AnimatedDigit],
-        oldValue: String,
-        newValue: String,
-        rawValue: String? = nil,
-        isDeletingDecimal: Bool = false
-    ) -> [AnimatedDigit] {
-        let formattedChars = Array(formatted)
-        var result: [AnimatedDigit] = []
-
-        var decimalIndex = -1
-        var isAfterDecimal = false
-
-        let oldParts = NumberParts(oldValue)
-        let newParts = NumberParts(newValue)
-        let rawParts = NumberParts(rawValue ?? newValue)
-
-        let oldDigitsOnly = oldParts.digitsOnly
-        let newDigitsOnly = newParts.digitsOnly
-
-        let oldNum = oldParts.doubleValue
-        let newNum = newParts.doubleValue
-
-        let isTransitionFromZero = oldNum == 0 && newNum > 0
-        let isTransitionToZero = oldNum > 0 && newNum == 0
-
+    
+    private func prepareAnimationData(
+        oldParts: NumberParts,
+        newParts: NumberParts
+    ) -> AnimationData {
         let isJustAddingDecimal = self.isAddingDecimals(
             oldParts: oldParts,
             newParts: newParts
         )
-
-        let isSingleDigitFromZero =
-            oldDigitsOnly == "0" && newDigitsOnly.count == 1 && newNum > 0
-        let isSingleDigitToZero =
-            newDigitsOnly == "0" && oldDigitsOnly.count == 1 && oldNum > 0
-
+        
         let isOnlyDecimalChanging = self.onlyDecimalIsChanging(
             oldParts: oldParts,
             newParts: newParts
         )
-
+        
         let hasChangingDigits = self.isChangingDigits(
-            oldDigitsOnly: oldDigitsOnly,
-            newDigitsOnly: newDigitsOnly,
+            oldDigitsOnly: oldParts.digitsOnly,
+            newDigitsOnly: newParts.digitsOnly,
             isOnlyDecimalChanging: isOnlyDecimalChanging
         )
-
-        var previousDigitsByPositionAndChar: [String: String] = [:]
-        if !hasChangingDigits {
+        
+        let isTransitionFromZero = oldParts.doubleValue == 0 && newParts.doubleValue > 0
+        let isTransitionToZero = oldParts.doubleValue > 0 && newParts.doubleValue == 0
+        
+        let isSingleDigitFromZero =
+        oldParts.digitsOnly == "0" && newParts.digitsOnly.count == 1 && newParts.doubleValue > 0
+        let isSingleDigitToZero =
+        newParts.digitsOnly == "0" && oldParts.digitsOnly.count == 1 && oldParts.doubleValue > 0
+        
+        return AnimationData(
+            isJustAddingDecimal: isJustAddingDecimal,
+            isOnlyDecimalChanging: isOnlyDecimalChanging,
+            hasChangingDigits: hasChangingDigits,
+            isTransitionFromZero: isTransitionFromZero,
+            isTransitionToZero: isTransitionToZero,
+            isSingleDigitFromZero: isSingleDigitFromZero,
+            isSingleDigitToZero: isSingleDigitToZero
+        )
+    }
+    
+    private func buildAnimatedDigits(
+        formatted: String,
+        previousDigits: [AnimatedDigit],
+        context: AnimationData,
+        oldParts: NumberParts,
+        newParts: NumberParts,
+        rawParts: NumberParts
+    ) -> [AnimatedDigit] {
+        let formattedChars = Array(formatted)
+        var result: [AnimatedDigit] = []
+        
+        var decimalIndex = -1
+        var isAfterDecimal = false
+        
+        var previousDigitsMap: [String: String] = [:]
+        if !context.hasChangingDigits {
             for digit in previousDigits
             where digit.char != "," && digit.char != "." && !digit.isPlaceholder
             {
                 let key = "\(digit.digitIndex)-\(digit.char)"
-                previousDigitsByPositionAndChar[key] = digit.id
+                previousDigitsMap[key] = digit.id
             }
         }
-
+        
         var digitPosition = 0
         var charIndex = 0
-
+        
         for char in formattedChars {
-            var isNew = false
-            var isZeroTransition = false
-
             if char == "," {
                 result.append(
                     AnimatedDigit(
@@ -428,7 +481,7 @@ import UnionShake
                     AnimatedDigit(
                         char: char,
                         digitIndex: digitPosition,
-                        isNew: isJustAddingDecimal,
+                        isNew: context.isJustAddingDecimal,
                         isZeroTransition: false,
                         isPlaceholder: false,
                         isReplacingDigit: false,
@@ -437,95 +490,58 @@ import UnionShake
                 )
             } else {
                 let isIntegerDigitWithDecimalChange =
-                    !isAfterDecimal && isOnlyDecimalChanging
-
+                !isAfterDecimal && context.isOnlyDecimalChanging
+                
                 var isReplacingDigit = false
                 var isPlaceholder = false
                 let isPlaceholderToReal = false
-
+                var isNew = false
+                var isZeroTransition = false
+                
                 if char == "0" && digitPosition == 0 && !isAfterDecimal {
-                    if newNum < 1 {
+                    if newParts.doubleValue < 1 {
                         isPlaceholder = true
                     }
                 } else if isAfterDecimal && char == "0" {
                     let decimalPosition = charIndex - decimalIndex - 1
                     let rawDecimalCount = rawParts.decimalCount
                     isPlaceholder = decimalPosition >= rawDecimalCount
-
+                    
                     if isPlaceholder && oldParts.hasDecimal {
                         if decimalPosition < oldParts.significantDecimalCount {
                             isReplacingDigit = true
                         }
                     }
                 }
-
-                let isReplacingDecimalPlaceholder =
-                    isAfterDecimal && !isPlaceholder
-                    && {
-                        let prevDigitAtPos = previousDigits.first {
-                            $0.digitIndex == digitPosition
-                        }
-                        return prevDigitAtPos?.isPlaceholder == true
-                    }()
-
-                if !isInitialLoad && !isPlaceholder && !isJustAddingDecimal
-                    && !isIntegerDigitWithDecimalChange
-                {
-                    if isSingleDigitToZero && char == "0" {
-                        isNew = true
-                        isZeroTransition = true
-                    } else if isSingleDigitFromZero && char != "0" {
-                        isNew = true
-                        isZeroTransition = false
-                    } else if isTransitionToZero && char == "0"
-                        && digitPosition == 0
-                    {
-                        isNew = true
-                        isZeroTransition = true
-                    } else if isTransitionFromZero
-                        && digitPosition == newDigitsOnly.count - 1
-                    {
-                        isNew = true
-                        isZeroTransition = false
-                    }
-
-                    if isReplacingDecimalPlaceholder {
-                        isNew = true
-                    }
-                }
-
+                
+                let isReplacingDecimalPlaceholder = isAfterDecimal && !isPlaceholder && {
+                    let prevDigitAtPos = previousDigits.first { $0.digitIndex == digitPosition }
+                    return prevDigitAtPos?.isPlaceholder == true
+                }()
+                
                 let lookupKey = "\(digitPosition)-\(char)"
-                let hasMatchingDigit =
-                    !isPlaceholder
-                    && previousDigitsByPositionAndChar[lookupKey] != nil
-
-                if !isNew && !isPlaceholder && !hasMatchingDigit
-                    && !isInitialLoad
-                {
-                    if isOnlyDecimalChanging && !isAfterDecimal {
-                        isNew = false
-                    } else {
-                        isNew = true
-                    }
-                }
-
-                var finalIsNew = isNew
-
-                if isIntegerDigitWithDecimalChange {
-                    finalIsNew = false
-                }
-
+                let hasMatchingDigit = !isPlaceholder && previousDigitsMap[lookupKey] != nil
+                
+                let isTransitioningToZero = (context.isSingleDigitToZero && char == "0") || (context.isTransitionToZero && char == "0" && digitPosition == 0)
+                let isTransitioningFromZero = (context.isSingleDigitFromZero && char != "0") || (context.isTransitionFromZero && digitPosition == newParts.digitsOnly.count - 1)
+                let isZeroTransitionEvent = isTransitioningToZero || isTransitioningFromZero
+                
+                let canBeConsideredNew = !isInitialLoad && !isPlaceholder
+                
+                let isNewFromEvent = !context.isJustAddingDecimal && !isIntegerDigitWithDecimalChange && (isZeroTransitionEvent || isReplacingDecimalPlaceholder)
+                
+                let isNewFromMismatch = !hasMatchingDigit && !(context.isOnlyDecimalChanging && !isAfterDecimal)
+                let isNewCandidate = canBeConsideredNew && (isNewFromEvent || isNewFromMismatch)
+                let finalIsNew = (isNewCandidate && !isIntegerDigitWithDecimalChange) || (isPlaceholder && context.isJustAddingDecimal && digitPosition != 0)
+                
                 result.append(
                     AnimatedDigit(
                         char: char,
                         digitIndex: digitPosition,
-                        isNew: finalIsNew
-                            || (isPlaceholder && isJustAddingDecimal
-                                && digitPosition != 0),
-                        isZeroTransition: isZeroTransition,
+                        isNew: finalIsNew,
+                        isZeroTransition: isTransitioningToZero,
                         isPlaceholder: isPlaceholder,
-                        isReplacingDigit: isReplacingDigit
-                            || (isPlaceholder && !isJustAddingDecimal),
+                        isReplacingDigit: isReplacingDigit || (isPlaceholder && !context.isJustAddingDecimal),
                         isPlaceholderToRealTransition: isPlaceholderToReal
                     )
                 )
@@ -533,8 +549,34 @@ import UnionShake
             }
             charIndex += 1
         }
-
+        
         return result
     }
-
+    
+    private func createDigits(
+        from formatted: String,
+        previousDigits: [AnimatedDigit],
+        oldValue: String,
+        newValue: String,
+        rawValue: String? = nil,
+        isDeletingDecimal: Bool = false
+    ) -> [AnimatedDigit] {
+        let oldParts = NumberParts(oldValue)
+        let newParts = NumberParts(newValue)
+        let rawParts = NumberParts(rawValue ?? newValue)
+        
+        let data = prepareAnimationData(
+            oldParts: oldParts,
+            newParts: newParts
+        )
+        
+        return buildAnimatedDigits(
+            formatted: formatted,
+            previousDigits: previousDigits,
+            context: data,
+            oldParts: oldParts,
+            newParts: newParts,
+            rawParts: rawParts
+        )
+    }
 }
