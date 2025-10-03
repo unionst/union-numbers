@@ -75,10 +75,10 @@ private enum NumberCountingLogic {
     static func prefix(for currency: AnimatedNumberConfig.EAmount.Currency?) -> String? {
         guard let currency else { return nil }
         switch currency {
-            case .USD, .USDC:
-                return "$"
-            default:
-                return nil
+        case .USD, .USDC:
+            return "$"
+        default:
+            return nil
         }
     }
     

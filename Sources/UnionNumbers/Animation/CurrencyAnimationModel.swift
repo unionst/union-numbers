@@ -459,89 +459,110 @@ import UnionShake
         }
         
         var digitPosition = 0
-        var charIndex = 0
-        
-        for char in formattedChars {
-            if char == "," {
+
+        for (charIndex, char) in formattedChars.enumerated() {
+            switch char {
+            case ",":
                 result.append(
                     AnimatedDigit(
                         char: char,
-                        digitIndex: digitPosition,
+                        digitIndex: digitPosition
                     )
                 )
-            } else if char == "." {
+            case ".":
                 isAfterDecimal = true
                 decimalIndex = charIndex
                 result.append(
                     AnimatedDigit(
                         char: char,
                         digitIndex: digitPosition,
-                        isNew: context.isJustAddingDecimal,
+                        isNew: context.isJustAddingDecimal
                     )
                 )
-            } else {
-                let isIntegerDigitWithDecimalChange =
-                !isAfterDecimal && context.isOnlyDecimalChanging
-                
-                var isReplacingDigit = false
-                var isPlaceholder = false
-                let isPlaceholderToReal = false
-                var isNew = false
-                var isZeroTransition = false
-                
-                if char == "0" && digitPosition == 0 && !isAfterDecimal {
-                    if newParts.doubleValue < 1 {
-                        isPlaceholder = true
-                    }
-                } else if isAfterDecimal && char == "0" {
-                    let decimalPosition = charIndex - decimalIndex - 1
-                    let rawDecimalCount = rawParts.decimalCount
-                    isPlaceholder = decimalPosition >= rawDecimalCount
-                    
-                    if isPlaceholder && oldParts.hasDecimal {
-                        if decimalPosition < oldParts.significantDecimalCount {
-                            isReplacingDigit = true
-                        }
-                    }
-                }
-                
-                let isReplacingDecimalPlaceholder = isAfterDecimal && !isPlaceholder && {
-                    let prevDigitAtPos = previousDigits.first { $0.digitIndex == digitPosition }
-                    return prevDigitAtPos?.isPlaceholder == true
-                }()
-                
-                let lookupKey = "\(digitPosition)-\(char)"
-                let hasMatchingDigit = !isPlaceholder && previousDigitsMap[lookupKey] != nil
-                
-                let isTransitioningToZero = (context.isSingleDigitToZero && char == "0") || (context.isTransitionToZero && char == "0" && digitPosition == 0)
-                let isTransitioningFromZero = (context.isSingleDigitFromZero && char != "0") || (context.isTransitionFromZero && digitPosition == newParts.digitsOnly.count - 1)
-                let isZeroTransitionEvent = isTransitioningToZero || isTransitioningFromZero
-                
-                let canBeConsideredNew = !isInitialLoad && !isPlaceholder
-                
-                let isNewFromEvent = !context.isJustAddingDecimal && !isIntegerDigitWithDecimalChange && (isZeroTransitionEvent || isReplacingDecimalPlaceholder)
-                
-                let isNewFromMismatch = !hasMatchingDigit && !(context.isOnlyDecimalChanging && !isAfterDecimal)
-                let isNewCandidate = canBeConsideredNew && (isNewFromEvent || isNewFromMismatch)
-                let finalIsNew = (isNewCandidate && !isIntegerDigitWithDecimalChange) || (isPlaceholder && context.isJustAddingDecimal && digitPosition != 0)
-                
+            default:
                 result.append(
-                    AnimatedDigit(
-                        char: char,
-                        digitIndex: digitPosition,
-                        isNew: finalIsNew,
-                        isZeroTransition: isTransitioningToZero,
-                        isPlaceholder: isPlaceholder,
-                        isReplacingDigit: isReplacingDigit || (isPlaceholder && !context.isJustAddingDecimal),
-                        isPlaceholderToRealTransition: isPlaceholderToReal
+                    buildDigit(
+                        character: char,
+                        digitPosition: digitPosition,
+                        charIndex: charIndex,
+                        decimalIndex: decimalIndex,
+                        isAfterDecimal: isAfterDecimal,
+                        previousDigits: previousDigits,
+                        previousDigitsMap: previousDigitsMap,
+                        context: context,
+                        oldParts: oldParts,
+                        newParts: newParts,
+                        rawParts: rawParts
                     )
                 )
                 digitPosition += 1
             }
-            charIndex += 1
         }
-        
+
         return result
+    }
+
+    private func buildDigit(
+        character char: Character,
+        digitPosition: Int,
+        charIndex: Int,
+        decimalIndex: Int,
+        isAfterDecimal: Bool,
+        previousDigits: [AnimatedDigit],
+        previousDigitsMap: [String: String],
+        context: AnimationData,
+        oldParts: NumberParts,
+        newParts: NumberParts,
+        rawParts: NumberParts
+    ) -> AnimatedDigit {
+        let isIntegerDigitWithDecimalChange = !isAfterDecimal && context.isOnlyDecimalChanging
+
+        var isReplacingDigit = false
+        var isPlaceholder = false
+
+        if char == "0" && digitPosition == 0 && !isAfterDecimal {
+            if newParts.doubleValue < 1 {
+                isPlaceholder = true
+            }
+        } else if isAfterDecimal && char == "0" {
+            let decimalPosition = charIndex - decimalIndex - 1
+            let rawDecimalCount = rawParts.decimalCount
+            isPlaceholder = decimalPosition >= rawDecimalCount
+
+            if isPlaceholder && oldParts.hasDecimal {
+                if decimalPosition < oldParts.significantDecimalCount {
+                    isReplacingDigit = true
+                }
+            }
+        }
+
+        let isReplacingDecimalPlaceholder = isAfterDecimal && !isPlaceholder && {
+            let prevDigitAtPos = previousDigits.first { $0.digitIndex == digitPosition }
+            return prevDigitAtPos?.isPlaceholder == true
+        }()
+
+        let lookupKey = "\(digitPosition)-\(char)"
+        let hasMatchingDigit = !isPlaceholder && previousDigitsMap[lookupKey] != nil
+
+        let isTransitioningToZero = (context.isSingleDigitToZero && char == "0") || (context.isTransitionToZero && char == "0" && digitPosition == 0)
+        let isTransitioningFromZero = (context.isSingleDigitFromZero && char != "0") || (context.isTransitionFromZero && digitPosition == newParts.digitsOnly.count - 1)
+        let isZeroTransitionEvent = isTransitioningToZero || isTransitioningFromZero
+
+        let canBeConsideredNew = !isInitialLoad && !isPlaceholder
+        let isNewFromEvent = !context.isJustAddingDecimal && !isIntegerDigitWithDecimalChange && (isZeroTransitionEvent || isReplacingDecimalPlaceholder)
+
+        let isNewFromMismatch = !hasMatchingDigit && !(context.isOnlyDecimalChanging && !isAfterDecimal)
+        let isNewCandidate = canBeConsideredNew && (isNewFromEvent || isNewFromMismatch)
+        let finalIsNew = (isNewCandidate && !isIntegerDigitWithDecimalChange) || (isPlaceholder && context.isJustAddingDecimal && digitPosition != 0)
+
+        return AnimatedDigit(
+            char: char,
+            digitIndex: digitPosition,
+            isNew: finalIsNew,
+            isZeroTransition: isTransitioningToZero,
+            isPlaceholder: isPlaceholder,
+            isReplacingDigit: isReplacingDigit || (isPlaceholder && !context.isJustAddingDecimal)
+        )
     }
     
     private func createDigits(
