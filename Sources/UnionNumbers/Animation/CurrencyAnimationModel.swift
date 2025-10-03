@@ -467,11 +467,6 @@ import UnionShake
                     AnimatedDigit(
                         char: char,
                         digitIndex: digitPosition,
-                        isNew: false,
-                        isZeroTransition: false,
-                        isPlaceholder: false,
-                        isReplacingDigit: false,
-                        isPlaceholderToRealTransition: false
                     )
                 )
             } else if char == "." {
@@ -482,10 +477,6 @@ import UnionShake
                         char: char,
                         digitIndex: digitPosition,
                         isNew: context.isJustAddingDecimal,
-                        isZeroTransition: false,
-                        isPlaceholder: false,
-                        isReplacingDigit: false,
-                        isPlaceholderToRealTransition: false
                     )
                 )
             } else {
