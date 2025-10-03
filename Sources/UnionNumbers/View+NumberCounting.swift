@@ -403,32 +403,32 @@ public extension NumberCountingAnimationView {
         )
     }
     
-    func currency(_ newValue: AnimatedNumberConfig.EAmount.Currency?) -> NumberCountingAnimationView {
+    func currency(_ newValue: AnimatedNumberConfig.EAmount.Currency?) -> some View {
         var copy = self
         copy._currency = newValue
         return copy
     }
     
-    func formatter(_ newValue: NumberFormatter) -> NumberCountingAnimationView {
+    func formatter(_ newValue: NumberFormatter) -> some View {
         var copy = self
         copy._formatter = newValue
         return copy
     }
     
-    func locale(_ newValue: Locale) -> NumberCountingAnimationView {
+    func locale(_ newValue: Locale) -> some View {
         var copy = self
         copy._locale = newValue
         return copy
     }
     
-    func font(_ newValue: Font, size: CGFloat? = nil) -> NumberCountingAnimationView {
+    func font(_ newValue: Font, size: CGFloat? = nil) -> some View {
         var copy = self
         copy._font = newValue
         if let size { copy._fontSize = size }
         return copy
     }
     
-    func foregroundColor(_ newValue: Color) -> NumberCountingAnimationView {
+    func foregroundColor(_ newValue: Color) -> some View {
         var copy = self
         copy._foregroundColor = newValue
         return copy
