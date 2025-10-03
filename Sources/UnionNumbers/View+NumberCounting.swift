@@ -75,10 +75,10 @@ private enum NumberCountingLogic {
     static func prefix(for currency: AnimatedNumberConfig.EAmount.Currency?) -> String? {
         guard let currency else { return nil }
         switch currency {
-        case .USD, .USDC:
-            return "$"
-        default:
-            return nil
+            case .USD, .USDC:
+                return "$"
+            default:
+                return nil
         }
     }
     
@@ -100,7 +100,7 @@ private enum NumberCountingLogic {
     }
     
     static func opacity(oldValue: String, newValue: String) -> Double {
-        if newValue.isEmpty { return 0.1 }
+        guard !newValue.isEmpty else { return 0.1 }
         if oldValue == "0" && newValue != "0" {
             return 1.0
         }
@@ -207,9 +207,8 @@ private struct NumberCountingView: View {
     }
     
     private func zIndex(for digit: AnimatedDigit) -> Double {
-        if digit.char == "," {
-            return 0
-        }
+        guard digit.char != "," else { return 0 }
+        
         if transitionState.isTransitioningFromZero {
             if !digit.isNew && digit.char == "0" {
                 return 3
@@ -353,7 +352,7 @@ private struct NumberCountingAnimationModifier: ViewModifier {
     }
     
     private func handleAmountChange(oldValue: String, newValue: String) {
-        if newValue == "." {
+        guard newValue != "." else {
             amount = oldValue
             return
         }
