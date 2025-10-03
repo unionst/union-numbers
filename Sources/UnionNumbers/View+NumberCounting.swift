@@ -13,6 +13,52 @@ import UnionGradients
 import UIKit
 #endif
 
+final class NumberCounterWrapper: @unchecked Sendable {
+    let value: NumberFormatter
+    init(_ value: NumberFormatter) { self.value = value }
+}
+
+private struct NumberCountingCurrencyKey: EnvironmentKey {
+    static let defaultValue: AnimatedNumberConfig.EAmount.Currency? = .USD
+}
+
+private struct NumberCountingFormatterKey: EnvironmentKey {
+    static let defaultValue: NumberCounterWrapper = {
+        let formatter = NumberFormatter()
+        return NumberCounterWrapper(formatter)
+    }()
+}
+
+private struct NumberCountingLocaleKey: EnvironmentKey {
+    static let defaultValue: Locale = .current
+}
+
+private struct NumberCountingFontSizeKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 17
+}
+
+private extension EnvironmentValues {
+    var numberCountingCurrency: AnimatedNumberConfig.EAmount.Currency? {
+        get { self[NumberCountingCurrencyKey.self] }
+        set { self[NumberCountingCurrencyKey.self] = newValue }
+    }
+    
+    var numberCountingFormatterBox: NumberCounterWrapper {
+        get { self[NumberCountingFormatterKey.self] }
+        set { self[NumberCountingFormatterKey.self] = newValue }
+    }
+    
+    var numberCountingLocale: Locale {
+        get { self[NumberCountingLocaleKey.self] }
+        set { self[NumberCountingLocaleKey.self] = newValue }
+    }
+    
+    var numberCountingFontSize: CGFloat {
+        get { self[NumberCountingFontSizeKey.self] }
+        set { self[NumberCountingFontSizeKey.self] = newValue }
+    }
+}
+
 private struct NumberCountingFormatConfig {
     let currency: AnimatedNumberConfig.EAmount.Currency?
     let formatter: NumberFormatter
@@ -23,7 +69,6 @@ private struct NumberCountingFormatConfig {
 
 private struct NumberCountingAppearance {
     let font: NumberCountingFont
-    let foregroundColor: Color
 }
 
 private enum NumberCountingLogic {
@@ -67,7 +112,6 @@ private enum NumberCountingLogic {
 }
 
 private struct NumberCountingFont {
-    let fontStyle: Font
     let fontSize: CGFloat
 }
 
@@ -89,7 +133,6 @@ private struct NumberCountingDecimalState {
 }
 
 private struct NumberCountingStyle {
-    let foregroundColor: Color
     let currentOpacity: Double
 }
 
@@ -117,8 +160,6 @@ private struct NumberCountingView: View {
                 HStack(spacing: 0) {
                     if let prefix = digitsGroup.prefix {
                         Text(prefix)
-                            .font(font.fontStyle)
-                            .foregroundColor(style.foregroundColor)
                             .opacity(style.currentOpacity)
                     }
                     
@@ -127,8 +168,6 @@ private struct NumberCountingView: View {
                             digit: digit,
                             oldDigit: digitsGroup.oldDigits[digit.digitIndex],
                             fontSize: font.fontSize,
-                            font: font.fontStyle,
-                            color: style.foregroundColor,
                             isTransitioningFromZero: transitionState.isTransitioningFromZero,
                             isTransitioningToZero: transitionState.isTransitioningToZero,
                             isAddingDecimal: decimalState.isAddingDecimal,
@@ -199,13 +238,11 @@ public struct NumberCountingAnimationView: View {
     
     var maxValue: Decimal
     var minValue: Decimal
-    
-    var _currency: AnimatedNumberConfig.EAmount.Currency? = .USD
-    var _formatter: NumberFormatter = .init()
-    var _locale: Locale = .current
-    var _fontSize: CGFloat = 17
-    var _font: Font = .system(size: 17, weight: .medium)
-    var _foregroundColor: Color = .black
+
+    @Environment(\.numberCountingCurrency) private var _currency
+    @Environment(\.numberCountingFormatterBox) private var _formatter
+    @Environment(\.numberCountingLocale) private var _locale
+    @Environment(\.numberCountingFontSize) private var _fontSize
     
     public var body: some View {
         Color.clear
@@ -215,17 +252,15 @@ public struct NumberCountingAnimationView: View {
                     shake: $shake,
                     format: NumberCountingFormatConfig(
                         currency: _currency,
-                        formatter: _formatter,
+                        formatter: _formatter.value,
                         locale: _locale,
                         minValue: minValue,
                         maxValue: maxValue
                     ),
                     appearance: NumberCountingAppearance(
                         font: NumberCountingFont(
-                            fontStyle: _font,
                             fontSize: _fontSize
-                        ),
-                        foregroundColor: _foregroundColor
+                        )
                     )
                 )
             )
@@ -264,7 +299,6 @@ private struct NumberCountingAnimationModifier: ViewModifier {
                 isDeletingDecimal: animationModel.isDeletingDecimal
             ),
             style: NumberCountingStyle(
-                foregroundColor: appearance.foregroundColor,
                 currentOpacity: currentOpacity
             ),
             motion: NumberCountingMotion(
@@ -402,36 +436,25 @@ public extension NumberCountingAnimationView {
             minValue: min.wrappedValue
         )
     }
-    
+}
+
+public extension View {
     func currency(_ newValue: AnimatedNumberConfig.EAmount.Currency?) -> some View {
-        var copy = self
-        copy._currency = newValue
-        return copy
+        self.environment(\.numberCountingCurrency, newValue)
     }
-    
+
     func formatter(_ newValue: NumberFormatter) -> some View {
-        var copy = self
-        copy._formatter = newValue
-        return copy
+        self.environment(\.numberCountingFormatterBox, NumberCounterWrapper(newValue))
     }
-    
+
     func locale(_ newValue: Locale) -> some View {
-        var copy = self
-        copy._locale = newValue
-        return copy
+        self.environment(\.numberCountingLocale, newValue)
     }
-    
-    func font(_ newValue: Font, size: CGFloat? = nil) -> some View {
-        var copy = self
-        copy._font = newValue
-        if let size { copy._fontSize = size }
-        return copy
-    }
-    
-    func foregroundColor(_ newValue: Color) -> some View {
-        var copy = self
-        copy._foregroundColor = newValue
-        return copy
+
+    func font(_ newValue: Font, size: CGFloat) -> some View {
+        self
+            .font(newValue)
+            .environment(\.numberCountingFontSize, size)
     }
 }
 

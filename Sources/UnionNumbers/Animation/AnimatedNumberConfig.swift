@@ -70,3 +70,5 @@ public struct AnimatedNumberConfig {
         }
     }
 }
+
+extension AnimatedNumberConfig.EAmount.Currency: Sendable {}

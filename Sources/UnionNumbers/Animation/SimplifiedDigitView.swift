@@ -11,8 +11,6 @@ struct SimplifiedDigitView: View, @preconcurrency Equatable {
     let digit: AnimatedDigit
     let oldDigit: AnimatedDigit?
     let fontSize: CGFloat
-    let font: Font
-    let color: Color
     let isTransitioningFromZero: Bool
     let isTransitioningToZero: Bool
     let isAddingDecimal: Bool
@@ -116,14 +114,10 @@ struct SimplifiedDigitView: View, @preconcurrency Equatable {
         Group {
             if #available(iOS 17.0, *) {
                 Text(String(digit.char))
-                    .font(font)
-                    .foregroundColor(color)
                     .opacity(determineOpacity())
                     .contentTransition(.identity)
             } else {
                 Text(String(digit.char))
-                    .font(font)
-                    .foregroundColor(color)
                     .opacity(determineOpacity())
             }
         }
