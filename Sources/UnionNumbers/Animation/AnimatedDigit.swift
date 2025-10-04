@@ -41,7 +41,10 @@ struct AnimatedDigit: Identifiable, Equatable {
         self.id = "\(digitIndex)-\(char)"
     }
 
-    static func == (lhs: AnimatedDigit, rhs: AnimatedDigit) -> Bool {
+    static func == (
+        lhs: AnimatedDigit,
+        rhs: AnimatedDigit
+    ) -> Bool {
         return lhs.digitIndex == rhs.digitIndex && lhs.char == rhs.char && lhs.isPlaceholder == rhs.isPlaceholder && lhs.isNew == rhs.isNew && lhs.isZeroTransition == rhs.isZeroTransition && lhs.isReplacingDigit == rhs.isReplacingDigit
     }
 }

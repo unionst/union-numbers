@@ -127,7 +127,10 @@ struct SimplifiedDigitView: View, @preconcurrency Equatable {
         .transition(transitionAction)
     }
 
-    static func == (lhs: SimplifiedDigitView, rhs: SimplifiedDigitView) -> Bool {
+    static func == (
+        lhs: SimplifiedDigitView,
+        rhs: SimplifiedDigitView
+    ) -> Bool {
         return lhs.digit == rhs.digit && lhs.overallOpacity == rhs.overallOpacity && rhs.oldDigit == lhs.oldDigit
     }
 }
