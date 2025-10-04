@@ -181,16 +181,18 @@ private struct NumberCountingView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .background(
                     GeometryReader { geometry in
-                        Color.clear
-                            .onAppear {
-                                layout.onContentWidthChange(geometry.size.width)
-                            }
-                            .onChange(of: geometry.size.width) { _, newWidth in
-                                layout.onContentWidthChange(newWidth)
-                            }
-                            .onChange(of: digitsGroup.digitIDs) { _, _ in
-                                layout.onContentWidthChange(geometry.size.width)
-                            }
+                        if #available(macOS 14.0, *) {
+                            Color.clear
+                                .onAppear {
+                                    layout.onContentWidthChange(geometry.size.width)
+                                }
+                                .onChange(of: geometry.size.width) { _, newWidth in
+                                    layout.onContentWidthChange(newWidth)
+                                }
+                                .onChange(of: digitsGroup.digitIDs) { _, _ in
+                                    layout.onContentWidthChange(geometry.size.width)
+                                }
+                        }
                     }
                 )
                 .scaleEffect(motion.digitScale)
@@ -244,28 +246,31 @@ public struct NumberCountingAnimationView: View {
     @Environment(\.numberCountingFontSize) private var _fontSize
     
     public var body: some View {
-        Color.clear
-            .modifier(
-                NumberCountingAnimationModifier(
-                    amount: $amount,
-                    shake: $shake,
-                    format: NumberCountingFormatConfig(
-                        currency: _currency,
-                        formatter: _formatter.value,
-                        locale: _locale,
-                        minValue: minValue,
-                        maxValue: maxValue
-                    ),
-                    appearance: NumberCountingAppearance(
-                        font: NumberCountingFont(
-                            fontSize: _fontSize
+        if #available(macOS 14.0, *) {
+            Color.clear
+                .modifier(
+                    NumberCountingAnimationModifier(
+                        amount: $amount,
+                        shake: $shake,
+                        format: NumberCountingFormatConfig(
+                            currency: _currency,
+                            formatter: _formatter.value,
+                            locale: _locale,
+                            minValue: minValue,
+                            maxValue: maxValue
+                        ),
+                        appearance: NumberCountingAppearance(
+                            font: NumberCountingFont(
+                                fontSize: _fontSize
+                            )
                         )
                     )
                 )
-            )
+        }
     }
 }
 
+@available(macOS 14.0, *)
 private struct NumberCountingAnimationModifier: ViewModifier {
     @Binding var amount: String
     @Binding var shake: Bool

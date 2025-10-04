@@ -113,9 +113,11 @@ struct SimplifiedDigitView: View, @preconcurrency Equatable {
     var body: some View {
         Group {
             if #available(iOS 17.0, *) {
-                Text(String(digit.char))
-                    .opacity(determineOpacity())
-                    .contentTransition(.identity)
+                if #available(macOS 13.0, *) {
+                    Text(String(digit.char))
+                        .opacity(determineOpacity())
+                        .contentTransition(.identity)
+                }
             } else {
                 Text(String(digit.char))
                     .opacity(determineOpacity())
