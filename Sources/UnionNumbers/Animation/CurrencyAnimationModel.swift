@@ -527,7 +527,9 @@ import UnionShake
         } else if isAfterDecimal && char == "0" {
             let decimalPosition = charIndex - decimalIndex - 1
             let rawDecimalCount = rawParts.decimalCount
-            isPlaceholder = decimalPosition >= rawDecimalCount
+            if rawParts.hasTrailingDecimalSeparator {
+                isPlaceholder = decimalPosition >= rawDecimalCount
+            }
 
             if isPlaceholder && oldParts.hasDecimal {
                 if decimalPosition < oldParts.significantDecimalCount {
