@@ -5,6 +5,7 @@
 </p>
 
 <br/>
+
 ## Features
 
 - Configurable minimum and maximum thresholds
