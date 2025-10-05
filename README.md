@@ -5,6 +5,10 @@
 </p>
 
 <br/>
+## Features
+
+- Configurable minimum and maximum thresholds
+- Disabled/shaking state when number goes above/below thresholds
 
 ## Get Started
 
