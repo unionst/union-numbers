@@ -32,6 +32,7 @@ final class NumberAnimationModel {
     private let queue = AnimationQueue()
     private var currentValue = ""
     private var currentRawValue: Double = 0
+    private var currentInputText: String?
     private var previousDigits: [AnimatedDigit] = []
     private var isInitialLoad = true
 
@@ -41,16 +42,17 @@ final class NumberAnimationModel {
     /// - Parameters:
     ///   - formattedValue: The pre-formatted string to display.
     ///   - rawValue: The raw numeric value for determining animation direction.
-    func setValue(_ formattedValue: String, rawValue: Double) {
+    ///   - inputText: Optional raw input text for placeholder detection.
+    func setValue(_ formattedValue: String, rawValue: Double, inputText: String? = nil) {
         Task { @MainActor in
             if isInitialLoad {
-                await applyValue(formattedValue, rawValue: rawValue)
+                await applyValue(formattedValue, rawValue: rawValue, inputText: inputText)
                 return
             }
 
             await queue.enqueue(formattedValue) { @MainActor [weak self] value in
                 guard let self else { return }
-                await self.applyValue(value, rawValue: rawValue)
+                await self.applyValue(value, rawValue: rawValue, inputText: inputText)
             }
         }
     }
@@ -58,21 +60,36 @@ final class NumberAnimationModel {
     // MARK: - Private Methods
 
     @discardableResult
-    private func applyValue(_ formattedValue: String, rawValue: Double) async -> Bool {
+    private func applyValue(_ formattedValue: String, rawValue: Double, inputText: String? = nil) async -> Bool {
         let oldValue = currentValue
         let oldRawValue = currentRawValue
+        let oldInputText = currentInputText
 
         currentValue = formattedValue
         currentRawValue = rawValue
+        currentInputText = inputText
 
         // Update transition flags based on raw numeric values
         isTransitioningFromZero = oldRawValue == 0 && rawValue > 0
         isTransitioningToZero = oldRawValue > 0 && rawValue == 0
         isIncreasing = rawValue >= oldRawValue
 
-        // Check for decimal changes in the formatted string
-        let oldHasDecimal = oldValue.contains(".")
-        let newHasDecimal = formattedValue.contains(".")
+        // Check for decimal changes based on what's being shown
+        // For string input, check if user just typed/deleted a decimal
+        // For numeric input, check the formatted string
+        let oldHasDecimal: Bool
+        let newHasDecimal: Bool
+
+        if inputText != nil {
+            // String API: check if decimal is now being shown (user typed it)
+            oldHasDecimal = oldInputText?.contains(".") ?? false
+            newHasDecimal = inputText?.contains(".") ?? false
+        } else {
+            // Numeric API: check formatted string
+            oldHasDecimal = oldValue.contains(".")
+            newHasDecimal = formattedValue.contains(".")
+        }
+
         isAddingDecimal = !oldHasDecimal && newHasDecimal
         isDeletingDecimal = oldHasDecimal && !newHasDecimal
 
@@ -80,7 +97,8 @@ final class NumberAnimationModel {
         let newDigits = createDigitsFromFormatted(
             formattedValue,
             oldFormatted: oldValue,
-            isIncreasing: rawValue > oldRawValue
+            isIncreasing: rawValue > oldRawValue,
+            inputText: inputText
         )
 
         renderDigits(newDigits: newDigits, isRemovingDigit: isRemovingDigit)
@@ -134,7 +152,8 @@ final class NumberAnimationModel {
     private func createDigitsFromFormatted(
         _ formatted: String,
         oldFormatted: String,
-        isIncreasing: Bool
+        isIncreasing: Bool,
+        inputText: String? = nil
     ) -> [AnimatedDigit] {
         let oldCharsByIndex = Dictionary(
             uniqueKeysWithValues: previousDigits.map { ($0.digitIndex, $0.char) }
@@ -143,8 +162,15 @@ final class NumberAnimationModel {
         let chars = Array(formatted)
         let decimalIndex = findDecimalSeparatorIndex(in: chars)
 
+        // Check if user has typed a decimal point
+        let inputHasDecimal = inputText?.contains(".") ?? true
+
+        // Calculate how many fractional digits were typed
+        let typedFractionalDigits = countTypedFractionalDigits(inputText)
+
         var result: [AnimatedDigit] = []
         var integerDigitCount = 0
+        var fractionalDigitCount = 0
 
         for (position, char) in chars.enumerated() {
             let index = semanticIndex(
@@ -154,15 +180,65 @@ final class NumberAnimationModel {
                 integerDigitCount: &integerDigitCount
             )
 
+            // Track fractional digit position for placeholder detection
+            let isAfterDecimal = decimalIndex != nil && position > decimalIndex!
+            let isDecimalSeparator = decimalIndex != nil && position == decimalIndex!
+
+            if isAfterDecimal && char.isNumber {
+                fractionalDigitCount += 1
+            }
+
+            // Hide decimal separator and fractional digits until user types decimal
+            // But preserve currency symbols and other non-numeric characters
+            if inputText != nil && !inputHasDecimal {
+                if isDecimalSeparator {
+                    continue
+                }
+                if isAfterDecimal && char.isNumber {
+                    continue
+                }
+            }
+
+            // A digit is a placeholder if:
+            // - We have inputText (String-based API) AND either:
+            //   - It's a fractional digit whose position exceeds what was typed
+            //   - It's the zero shown when input is exactly "0" (empty state)
+            //   - It's the currency symbol when input is "0" (empty state)
+            let isFractionalPlaceholder = isAfterDecimal
+                && char.isNumber
+                && fractionalDigitCount > typedFractionalDigits
+
+            let isEmptyState = inputText == "0"
+            let isZeroPlaceholder = isEmptyState && char == "0" && index == 0
+            let isCurrencyPlaceholder = isEmptyState && !char.isNumber && char != "," && char != "."
+
+            let isPlaceholder = inputText != nil && (isFractionalPlaceholder || isZeroPlaceholder || isCurrencyPlaceholder)
+
             result.append(AnimatedDigit(
                 char: char,
                 digitIndex: index,
                 isNew: !isInitialLoad && oldCharsByIndex[index] != char,
-                isZeroTransition: isTransitioningToZero && char == "0"
+                isZeroTransition: isTransitioningToZero && char == "0",
+                isPlaceholder: isPlaceholder
             ))
         }
 
         return result
+    }
+
+    /// Counts how many fractional digits were explicitly typed in the input.
+    private func countTypedFractionalDigits(_ inputText: String?) -> Int {
+        guard let input = inputText else { return Int.max }
+
+        // Find the decimal point in the input
+        guard let decimalIndex = input.firstIndex(of: ".") else {
+            // No decimal typed - all formatted fractional digits are placeholders
+            return 0
+        }
+
+        // Count digits after the decimal
+        let afterDecimal = input[input.index(after: decimalIndex)...]
+        return afterDecimal.filter { $0.isNumber }.count
     }
 
     /// Finds the decimal separator index, distinguishing it from grouping separators.

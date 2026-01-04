@@ -26,35 +26,25 @@ struct DigitView: View {
 
     var body: some View {
         Text(String(digit.char))
-            .opacity(computedOpacity)
-            .contentTransition(.identity)
+            .foregroundStyle(digit.isPlaceholder ? .secondary : .primary)
+            .opacity(overallOpacity)
+            .contentTransition(.interpolate)
+            .animation(.spring(duration: 0.35), value: digit.isPlaceholder)
             .animation(.spring(duration: 0.3, bounce: 0.1), value: fontSize)
             .transition(transition)
-    }
-
-    // MARK: - Computed Properties
-
-    private var computedOpacity: Double {
-        if digit.isPlaceholder && digit.digitIndex == 0 && digit.char == "0" {
-            return overallOpacity
-        }
-        if digit.isPlaceholder {
-            return 0.1
-        }
-        return overallOpacity
     }
 
     private var transition: AnyTransition {
         // Special handling for separators
         if digit.char == "," {
-            return AnyTransition.opacity.animation(AnimationTiming.Spring.commaFade)
-        }
-
-        if digit.char == "." {
-            return .opacity
+            return .opacity.animation(AnimationTiming.Spring.commaFade)
         }
 
         let offset = AnimationTiming.fontOffset(for: fontSize)
+
+        if digit.char == "." {
+            return .opacity.animation(.spring(duration: 0.15))
+        }
 
         // Placeholder transitions
         if digit.isPlaceholder {

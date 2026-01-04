@@ -14,6 +14,8 @@ public struct _NumberExample: View {
     @AppStorage("numberExample.monospacedDigit") private var monospacedDigit = true
     @AppStorage("numberExample.currencyCode") private var currencyCode = "USD"
     @AppStorage("numberExample.localeId") private var localeId = "en_US"
+    @AppStorage("numberExample.useStringInput") private var useStringInput = true
+    @AppStorage("numberExample.fontSize") private var fontSize = 48.0
     @State private var shakeTrigger = 0
 
     private let currencies = ["None", "USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY"]
@@ -34,21 +36,44 @@ public struct _NumberExample: View {
     public var body: some View {
         VStack(spacing: 16) {
             Group {
-                if currencyCode == "None" {
-                    AnimatedNumber(value: $price, in: 0...100_000, format: .number.locale(locale))
+                if useStringInput {
+                    // String-based API with placeholder support
+                    if currencyCode == "None" {
+                        AnimatedNumber(
+                            text: $inputString,
+                            in: 0...100_000,
+                            format: .number.locale(locale)
+                        )
+                    } else {
+                        AnimatedNumber(
+                            text: $inputString,
+                            in: 0...100_000,
+                            format: .currency(code: currencyCode).locale(locale)
+                        )
+                    }
                 } else {
-                    AnimatedNumber(
-                        value: $price,
-                        in: 0...100_000,
-                        format: .currency(code: currencyCode).locale(locale)
-                    )
+                    // Numeric API (no placeholders)
+                    if currencyCode == "None" {
+                        AnimatedNumber(
+                            value: $price,
+                            in: 0...100_000,
+                            format: .number.locale(locale)
+                        )
+                    } else {
+                        AnimatedNumber(
+                            value: $price,
+                            in: 0...100_000,
+                            format: .currency(code: currencyCode).locale(locale)
+                        )
+                    }
                 }
             }
             .font(
                 monospacedDigit
-                    ? .system(size: 48, weight: .bold).monospacedDigit()
-                    : .system(size: 48, weight: .bold)
+                    ? .system(size: fontSize, weight: .bold).monospacedDigit()
+                    : .system(size: fontSize, weight: .bold)
             )
+            .foregroundStyle(.primary, .primary.opacity(0.1))
             .shakeTrigger(shakeTrigger)
             .frame(maxWidth: .infinity)
 
@@ -70,8 +95,18 @@ public struct _NumberExample: View {
             .pickerStyle(.segmented)
             .padding(.horizontal)
 
+            Toggle("String Input (placeholders)", isOn: $useStringInput)
+                .padding(.horizontal)
+
             Toggle("Monospaced Digit", isOn: $monospacedDigit)
                 .padding(.horizontal)
+
+            HStack {
+                Text("Size: \(Int(fontSize))")
+                    .frame(width: 70, alignment: .leading)
+                Slider(value: $fontSize, in: 24...96, step: 4)
+            }
+            .padding(.horizontal)
 
             Spacer()
 
@@ -116,7 +151,31 @@ public struct _NumberExample: View {
         .buttonStyle(.plain)
     }
 
+    private var maxDecimalPlaces: Int {
+        // JPY has no decimal places, most other currencies have 2
+        switch currencyCode {
+        case "None": return 6
+        case "JPY": return 0
+        default: return 2
+        }
+    }
+
     private func appendDigit(_ digit: String) {
+        // Prevent typing 0 when already at 0
+        if inputString == "0" && digit == "0" {
+            shakeTrigger += 1
+            return
+        }
+
+        // Check if we'd exceed max decimal places
+        if let decimalIndex = inputString.firstIndex(of: ".") {
+            let currentDecimalPlaces = inputString.distance(from: inputString.index(after: decimalIndex), to: inputString.endIndex)
+            if currentDecimalPlaces >= maxDecimalPlaces {
+                shakeTrigger += 1
+                return
+            }
+        }
+
         let newString = inputString == "0" ? digit : inputString + digit
         if let value = Double(newString), value <= 100_000 {
             inputString = newString
@@ -127,6 +186,10 @@ public struct _NumberExample: View {
     }
 
     private func appendDecimal() {
+        if maxDecimalPlaces == 0 {
+            shakeTrigger += 1
+            return
+        }
         if !inputString.contains(".") {
             inputString += "."
         }

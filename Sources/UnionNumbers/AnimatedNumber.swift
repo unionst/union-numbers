@@ -62,12 +62,15 @@ public struct AnimatedNumber<F: FormatStyle>: View where F.FormatInput == Double
     private let format: F
     private let bounds: ClosedRange<Double>?
     private let binding: Binding<Double>?
+    private let textBinding: Binding<String>?
     private let staticValue: Double?
+    private let staticText: String?
 
     @State private var model = NumberAnimationModel()
     @State private var contentWidth: CGFloat = 0
     @State private var measuredFontSize: CGFloat = 17
     @State private var lastValidValue: Double = 0
+    @State private var lastValidText: String = "0"
     @State private var shakeCounter: Int = 0
 
     @Environment(\.animatedNumberHapticFeedback) private var hapticFeedbackEnabled
@@ -76,21 +79,33 @@ public struct AnimatedNumber<F: FormatStyle>: View where F.FormatInput == Double
     // MARK: - Computed
 
     private var currentValue: Double {
-        binding?.wrappedValue ?? staticValue ?? 0
+        if let textBinding {
+            return Double(textBinding.wrappedValue) ?? 0
+        }
+        if let staticText {
+            return Double(staticText) ?? 0
+        }
+        return binding?.wrappedValue ?? staticValue ?? 0
+    }
+
+    private var currentInputText: String? {
+        textBinding?.wrappedValue ?? staticText
     }
 
     private var formattedValue: String {
         format.format(currentValue)
     }
 
-    // MARK: - Initializers (Display Only)
+    // MARK: - Initializers (Display Only - Numeric)
 
     /// Creates an animated number display.
     public init(_ value: Double, format: F) {
         self.format = format
         self.bounds = nil
         self.binding = nil
+        self.textBinding = nil
         self.staticValue = value
+        self.staticText = nil
     }
 
     /// Creates an animated number display from an integer.
@@ -103,7 +118,43 @@ public struct AnimatedNumber<F: FormatStyle>: View where F.FormatInput == Double
         self.init(NSDecimalNumber(decimal: value).doubleValue, format: format)
     }
 
-    // MARK: - Initializers (Bounded)
+    // MARK: - Initializers (Display Only - String)
+
+    /// Creates an animated number display from a string.
+    ///
+    /// Use this initializer when you want automatic placeholder detection.
+    /// Decimal digits that appear in the formatted output but weren't in the
+    /// input string are shown as placeholders (grayed out).
+    ///
+    /// - Parameters:
+    ///   - text: The raw input string (e.g., "1.2").
+    ///   - format: The format style to use.
+    public init(_ text: String, format: F) {
+        self.format = format
+        self.bounds = nil
+        self.binding = nil
+        self.textBinding = nil
+        self.staticValue = nil
+        self.staticText = text
+    }
+
+    /// Creates an animated number display from a string binding.
+    ///
+    /// Use this initializer for keypad-style input with automatic placeholder detection.
+    ///
+    /// - Parameters:
+    ///   - text: A binding to the raw input string.
+    ///   - format: The format style to use.
+    public init(text: Binding<String>, format: F) {
+        self.format = format
+        self.bounds = nil
+        self.binding = nil
+        self.textBinding = text
+        self.staticValue = nil
+        self.staticText = nil
+    }
+
+    // MARK: - Initializers (Bounded - Numeric)
 
     /// Creates an animated number with bounds validation.
     ///
@@ -118,7 +169,9 @@ public struct AnimatedNumber<F: FormatStyle>: View where F.FormatInput == Double
         self.format = format
         self.bounds = bounds
         self.binding = value
+        self.textBinding = nil
         self.staticValue = nil
+        self.staticText = nil
     }
 
     /// Creates an animated number with bounds validation from an integer binding.
@@ -129,7 +182,28 @@ public struct AnimatedNumber<F: FormatStyle>: View where F.FormatInput == Double
             get: { Double(value.wrappedValue) },
             set: { value.wrappedValue = Int($0) }
         )
+        self.textBinding = nil
         self.staticValue = nil
+        self.staticText = nil
+    }
+
+    // MARK: - Initializers (Bounded - String)
+
+    /// Creates an animated number with bounds validation from a string binding.
+    ///
+    /// Combines keypad-style input with bounds validation and automatic placeholder detection.
+    ///
+    /// - Parameters:
+    ///   - text: A binding to the raw input string.
+    ///   - bounds: The allowed range for the value.
+    ///   - format: The format style to use.
+    public init(text: Binding<String>, in bounds: ClosedRange<Double>, format: F) {
+        self.format = format
+        self.bounds = bounds
+        self.binding = nil
+        self.textBinding = text
+        self.staticValue = nil
+        self.staticText = nil
     }
 
     // MARK: - Body
@@ -159,13 +233,17 @@ public struct AnimatedNumber<F: FormatStyle>: View where F.FormatInput == Double
         }
         .onAppear {
             lastValidValue = currentValue
-            model.setValue(formattedValue, rawValue: currentValue)
+            lastValidText = currentInputText ?? ""
+            model.setValue(formattedValue, rawValue: currentValue, inputText: currentInputText)
         }
         .onChange(of: currentValue) { oldValue, newValue in
             handleValueChange(from: oldValue, to: newValue)
         }
         .onChange(of: formattedValue) { _, newFormatted in
-            model.setValue(newFormatted, rawValue: currentValue)
+            model.setValue(newFormatted, rawValue: currentValue, inputText: currentInputText)
+        }
+        .onChange(of: currentInputText) { _, newText in
+            model.setValue(formattedValue, rawValue: currentValue, inputText: newText)
         }
         .onChange(of: externalShakeTrigger) { _, _ in
             triggerBoundsError()
@@ -176,10 +254,14 @@ public struct AnimatedNumber<F: FormatStyle>: View where F.FormatInput == Double
 
     private func handleValueChange(from oldValue: Double, to newValue: Double) {
         // Check bounds if we have them
-        if let bounds, let binding {
+        if let bounds {
             if !bounds.contains(newValue) {
                 // Out of bounds - reject and shake
-                binding.wrappedValue = lastValidValue
+                if let binding {
+                    binding.wrappedValue = lastValidValue
+                } else if let textBinding {
+                    textBinding.wrappedValue = lastValidText
+                }
                 triggerBoundsError()
                 return
             }
@@ -187,7 +269,8 @@ public struct AnimatedNumber<F: FormatStyle>: View where F.FormatInput == Double
 
         // Valid value - update
         lastValidValue = newValue
-        model.setValue(format.format(newValue), rawValue: newValue)
+        lastValidText = currentInputText ?? ""
+        model.setValue(format.format(newValue), rawValue: newValue, inputText: currentInputText)
     }
 
     private func triggerBoundsError() {
@@ -237,6 +320,16 @@ public extension AnimatedNumber where F == FloatingPointFormatStyle<Double> {
         self.init(NSDecimalNumber(decimal: value).doubleValue, format: .number)
     }
 
+    /// Creates an animated number display from a string with default formatting.
+    init(_ text: String) {
+        self.init(text, format: .number)
+    }
+
+    /// Creates an animated number from a string binding with default formatting.
+    init(text: Binding<String>) {
+        self.init(text: text, format: .number)
+    }
+
     /// Creates an animated number with bounds validation.
     init(value: Binding<Double>, in bounds: ClosedRange<Double>) {
         self.init(value: value, in: bounds, format: .number)
@@ -245,6 +338,11 @@ public extension AnimatedNumber where F == FloatingPointFormatStyle<Double> {
     /// Creates an animated number with bounds validation from an integer binding.
     init(value: Binding<Int>, in bounds: ClosedRange<Int>) {
         self.init(value: value, in: bounds, format: .number)
+    }
+
+    /// Creates an animated number from a string binding with bounds validation.
+    init(text: Binding<String>, in bounds: ClosedRange<Double>) {
+        self.init(text: text, in: bounds, format: .number)
     }
 }
 

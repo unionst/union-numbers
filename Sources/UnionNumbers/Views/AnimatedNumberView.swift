@@ -51,8 +51,10 @@ struct AnimatedNumberView: View {
         .scaleEffect(scale)
         .animation(AnimationTiming.Spring.standard, value: scale)
         .padding(.vertical, fontSize * 2)
+        .padding(.horizontal, fontSize)
         .mask(GradientMask(padding: fontSize * 2, fade: fontSize * 0.15))
         .padding(.vertical, -fontSize * 2)
+        .padding(.horizontal, -fontSize)
         .shake(on: shakeCounter, amount: 8, shakesPerUnit: 3)
     }
 
