@@ -1,26 +1,29 @@
 //
 //  AnimationQueue.swift
-//  union-animated-number
+//  union-numbers
 //
 //  Created by Vitor Lelis on 8/12/25.
 //
 
-import CoreText
 import Foundation
-import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
-import UnionGradients
-import UnionShake
 
+/// An actor that manages debounced animation updates for number changes.
 actor AnimationQueue {
+
+    // MARK: - Private Properties
+
     private var currentTask: Task<Void, Never>?
     private var pendingValue: String?
     private var isProcessing = false
     private var lastProcessedValue: String?
 
-    @available(macOS 13.0, *)
+    // MARK: - Public Methods
+
+    /// Enqueues a value change with appropriate debouncing.
+    /// - Parameters:
+    ///   - value: The new value to process.
+    ///   - apply: The closure to call with the final value.
+    @available(macOS 13.0, iOS 16.0, *)
     func enqueue(_ value: String, apply: @Sendable @escaping (String) async -> Void) async {
         pendingValue = value
 
@@ -35,48 +38,40 @@ actor AnimationQueue {
         }
 
         let task = Task {
-            let debounceTime: Double
-            
-            if isDeleting {
-                debounceTime = AnimatedNumberConfig.AnimationTiming.debounce.deletion
-            } else if value.count > 3 {
-                debounceTime = AnimatedNumberConfig.AnimationTiming.debounce.longInput
-            } else {
-                debounceTime = AnimatedNumberConfig.AnimationTiming.debounce.shortInput
-            }
-            
+            let debounceTime = debounceTime(for: value, isDeleting: isDeleting)
+
             do {
                 try await Task.sleep(for: .seconds(debounceTime))
             } catch {
-                print("sleep failed in AnimationQueue enqueue: \(error)")
+                // Task was cancelled, which is expected behavior
             }
 
             guard !Task.isCancelled else {
-                setProcessing(false)
+                isProcessing = false
                 return
             }
 
-            if let latestValue = getPendingValue() {
+            if let latestValue = pendingValue {
                 await apply(latestValue)
-                setLastProcessedValue(latestValue)
+                lastProcessedValue = latestValue
             }
 
-            setProcessing(false)
+            isProcessing = false
         }
 
         currentTask = task
     }
 
-    private func getPendingValue() -> String? {
-        pendingValue
-    }
+    // MARK: - Private Methods
 
-    private func setProcessing(_ value: Bool) {
-        isProcessing = value
-    }
-
-    private func setLastProcessedValue(_ value: String) {
-        lastProcessedValue = value
+    private func debounceTime(for value: String, isDeleting: Bool) -> Double {
+        if isDeleting {
+            return AnimationTiming.Debounce.deletion
+        } else if value.count > 3 {
+            return AnimationTiming.Debounce.longInput
+        } else {
+            return AnimationTiming.Debounce.shortInput
+        }
     }
 
     private func isDeleting(newValue: String, oldValue: String?) -> Bool {

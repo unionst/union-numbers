@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "union-numbers",
     platforms: [
-        .macOS(.v11),
+        .macOS(.v14),
         .iOS(.v17)
     ],
     products: [
@@ -15,15 +15,16 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/unionst/union-gradients" , from: "1.0.1"),
+        .package(url: "https://github.com/unionst/union-gradients", from: "1.0.1"),
         .package(url: "https://github.com/unionst/union-shake", from: "1.0.1")
     ],
     targets: [
         .target(
             name: "UnionNumbers",
             dependencies: [
-                .product(name: "UnionShake", package: "union-shake"),
-                .product(name: "UnionGradients", package: "union-gradients")],
+                .product(name: "UnionGradients", package: "union-gradients"),
+                .product(name: "UnionShake", package: "union-shake")
+            ]
         ),
     ]
 )

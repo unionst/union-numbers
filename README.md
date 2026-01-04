@@ -1,59 +1,107 @@
-import SwiftUI
+# UnionNumbers
+
+A SwiftUI library for smoothly animating numeric values with slot-machine style digit transitions.
+
+## Requirements
+
+- iOS 17.0+ / macOS 14.0+
+- Swift 6.1+
+
+## Installation
+
+### Swift Package Manager
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/unionst/union-numbers.git", from: "1.0.0")
+]
+```
+
+## Usage
+
+```swift
 import UnionNumbers
+```
 
+### Basic
+
+```swift
+AnimatedNumber(count)
+    .font(.system(size: 48, weight: .bold))
+    .monospacedDigit()
+```
+
+### Currency
+
+```swift
+AnimatedNumber(price, format: .currency(code: "USD"))
+    .font(.system(size: 48))
+```
+
+### With Bounds
+
+When the value exceeds the range, it reverts and shakes with haptic feedback:
+
+```swift
+AnimatedNumber(value: $price, in: 0...1000, format: .currency(code: "USD"))
+    .font(.system(size: 48))
+```
+
+### Disable Haptic Feedback
+
+Shake always occurs, but haptic can be disabled:
+
+```swift
+AnimatedNumber(value: $price, in: 0...1000)
+    .hapticFeedback(false)
+```
+
+### Full Example
+
+```swift
 struct ContentView: View {
-    @State private var amount: String = "0"
-    @State private var shake = false
-    @State private var min: Decimal = 5
-    @State private var max: Decimal = 10
-    
-    private let step: Double = 1.50
+    @State private var price = 50.0
 
-    private func adjust(by delta: Double) {
-        let current = Decimal(string: amount) ?? 0
-        let result = current + Decimal(delta)
-        amount = "\(result)"
-    }
-    
     var body: some View {
         VStack {
-            Text("Placeholder")
-                .numberCounting(amount)
-                .animationStyle(
-                    $amount,
-                    shake: $shake,
-                    min: $min,
-                    max: $max
-                )
-                .currency(.USD)
-                .font(.system(size: 50, weight: .medium), size: 50)
-                .foregroundColor(
-                    Color(
-                        red: 0.5,
-                        green: 0.5,
-                        blue: 0.5
-                    )
-                )
+            AnimatedNumber(value: $price, in: 0...100, format: .currency(code: "USD"))
+                .font(.system(size: 48, weight: .bold))
                 .monospacedDigit()
-                .padding(.bottom, 50)
-            
+
             HStack {
-                Button("Subtract") {
-                    adjust(by: -step)
-                }
-                
-                Button("Add") {
-                    adjust(by: step)
-                }
-            }.padding(10)
-            
-            Text("Min amount is $\(min)").padding(10)
-            Text("Max amount is $\(max)").padding(10)
+                Button("-$10") { price -= 10 }
+                Button("+$10") { price += 10 }
+            }
+
+            Text("Try going below $0 or above $100")
+                .foregroundStyle(.secondary)
         }
-        .padding()
     }
 }
+```
 
-#Preview {
-    ContentView()
-}
+## API
+
+### Display Only
+
+```swift
+AnimatedNumber(_ value: Double)
+AnimatedNumber(_ value: Double, format: FormatStyle)
+```
+
+### With Bounds Validation
+
+```swift
+AnimatedNumber(value: Binding<Double>, in: ClosedRange<Double>)
+AnimatedNumber(value: Binding<Double>, in: ClosedRange<Double>, format: FormatStyle)
+```
+
+### Modifiers
+
+```swift
+.hapticFeedback(false)  // Disable haptic on bounds error (shake still occurs)
+```
+
+## License
+
+MIT
