@@ -13,21 +13,27 @@ struct GradientMask: View {
 
     // MARK: - Properties
 
-    let size: CGFloat
+    let paddingSize: CGFloat
+    let fadeSize: CGFloat
 
     // MARK: - Initialization
 
-    init(_ size: CGFloat) {
-        self.size = size
+    init(padding: CGFloat, fade: CGFloat) {
+        self.paddingSize = padding
+        self.fadeSize = fade
     }
 
     // MARK: - Body
 
     var body: some View {
         VStack(spacing: 0) {
+            Color.clear
+                .frame(height: paddingSize - fadeSize)
             gradient(from: .top, to: .bottom)
             Color.white
             gradient(from: .bottom, to: .top)
+            Color.clear
+                .frame(height: paddingSize - fadeSize)
         }
     }
 
@@ -44,6 +50,6 @@ struct GradientMask: View {
             endPoint: end,
             smoothType: .smootherstep
         )
-        .frame(height: size)
+        .frame(height: fadeSize)
     }
 }

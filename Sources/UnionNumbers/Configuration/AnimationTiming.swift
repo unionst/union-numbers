@@ -47,7 +47,7 @@ enum AnimationTiming {
             blendDuration: 0.1
         )
 
-        static let commaFade = Animation.linear(duration: 0.025)
+        static let commaFade = Animation.spring(duration: 0.1)
     }
 
     // MARK: - Transition Reset

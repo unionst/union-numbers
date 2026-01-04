@@ -11,16 +11,25 @@ import SwiftUI
 import UIKit
 #endif
 
-// MARK: - Environment Key
+// MARK: - Environment Keys
 
 private struct HapticFeedbackKey: EnvironmentKey {
     static let defaultValue: Bool = true
+}
+
+private struct ShakeTriggerKey: EnvironmentKey {
+    static let defaultValue: Int = 0
 }
 
 extension EnvironmentValues {
     var animatedNumberHapticFeedback: Bool {
         get { self[HapticFeedbackKey.self] }
         set { self[HapticFeedbackKey.self] = newValue }
+    }
+
+    var animatedNumberShakeTrigger: Int {
+        get { self[ShakeTriggerKey.self] }
+        set { self[ShakeTriggerKey.self] = newValue }
     }
 }
 
@@ -62,11 +71,16 @@ public struct AnimatedNumber<F: FormatStyle>: View where F.FormatInput == Double
     @State private var shakeCounter: Int = 0
 
     @Environment(\.animatedNumberHapticFeedback) private var hapticFeedbackEnabled
+    @Environment(\.animatedNumberShakeTrigger) private var externalShakeTrigger
 
     // MARK: - Computed
 
     private var currentValue: Double {
         binding?.wrappedValue ?? staticValue ?? 0
+    }
+
+    private var formattedValue: String {
+        format.format(currentValue)
     }
 
     // MARK: - Initializers (Display Only)
@@ -145,10 +159,16 @@ public struct AnimatedNumber<F: FormatStyle>: View where F.FormatInput == Double
         }
         .onAppear {
             lastValidValue = currentValue
-            model.setValue(format.format(currentValue), rawValue: currentValue)
+            model.setValue(formattedValue, rawValue: currentValue)
         }
         .onChange(of: currentValue) { oldValue, newValue in
             handleValueChange(from: oldValue, to: newValue)
+        }
+        .onChange(of: formattedValue) { _, newFormatted in
+            model.setValue(newFormatted, rawValue: currentValue)
+        }
+        .onChange(of: externalShakeTrigger) { _, _ in
+            triggerBoundsError()
         }
     }
 
@@ -244,5 +264,23 @@ public extension View {
     /// ```
     func hapticFeedback(_ enabled: Bool) -> some View {
         environment(\.animatedNumberHapticFeedback, enabled)
+    }
+
+    /// Triggers a shake animation with haptic feedback when the value changes.
+    ///
+    /// Increment this value to trigger a shake animation, useful for external
+    /// validation like a custom keypad rejecting invalid input.
+    ///
+    /// ```swift
+    /// @State private var shakeTrigger = 0
+    ///
+    /// AnimatedNumber(value: $price, in: 0...100)
+    ///     .shakeTrigger(shakeTrigger)
+    ///
+    /// // Later, to trigger shake:
+    /// shakeTrigger += 1
+    /// ```
+    func shakeTrigger(_ trigger: Int) -> some View {
+        environment(\.animatedNumberShakeTrigger, trigger)
     }
 }
