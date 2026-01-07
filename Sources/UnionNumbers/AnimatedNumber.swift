@@ -21,6 +21,10 @@ private struct ShakeTriggerKey: EnvironmentKey {
     static let defaultValue: Int = 0
 }
 
+private struct FeatheredEdgesKey: EnvironmentKey {
+    static let defaultValue: Bool = true
+}
+
 extension EnvironmentValues {
     var animatedNumberHapticFeedback: Bool {
         get { self[HapticFeedbackKey.self] }
@@ -30,6 +34,11 @@ extension EnvironmentValues {
     var animatedNumberShakeTrigger: Int {
         get { self[ShakeTriggerKey.self] }
         set { self[ShakeTriggerKey.self] = newValue }
+    }
+
+    var animatedNumberFeatheredEdges: Bool {
+        get { self[FeatheredEdgesKey.self] }
+        set { self[FeatheredEdgesKey.self] = newValue }
     }
 }
 
@@ -380,5 +389,19 @@ public extension View {
     /// ```
     func shakeTrigger(_ trigger: Int) -> some View {
         environment(\.animatedNumberShakeTrigger, trigger)
+    }
+
+    /// Enables or disables feathered edges on the animated number.
+    ///
+    /// When enabled (the default), a gradient mask fades the top and bottom edges
+    /// of the digits, creating a slot-machine style effect. Disable this when
+    /// displaying the number on a non-solid background.
+    ///
+    /// ```swift
+    /// AnimatedNumber(42)
+    ///     .featheredEdges(false)
+    /// ```
+    func featheredEdges(_ enabled: Bool) -> some View {
+        environment(\.animatedNumberFeatheredEdges, enabled)
     }
 }

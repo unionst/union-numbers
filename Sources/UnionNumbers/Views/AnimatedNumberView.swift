@@ -26,6 +26,8 @@ struct AnimatedNumberView: View {
     let shakeCounter: Int
     let onContentWidthChange: (CGFloat) -> Void
 
+    @Environment(\.animatedNumberFeatheredEdges) private var featheredEdges
+
     // MARK: - Body
 
     var body: some View {
@@ -52,7 +54,7 @@ struct AnimatedNumberView: View {
         .animation(AnimationTiming.Spring.standard, value: scale)
         .padding(.vertical, fontSize * 2)
         .padding(.horizontal, fontSize)
-        .mask(GradientMask(padding: fontSize * 2, fade: fontSize * 0.15))
+        .mask(GradientMask(padding: fontSize * 2, fade: fontSize * 0.15, enabled: featheredEdges))
         .padding(.vertical, -fontSize * 2)
         .padding(.horizontal, -fontSize)
         .shake(on: shakeCounter, amount: 8, shakesPerUnit: 3)

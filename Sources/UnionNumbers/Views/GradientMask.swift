@@ -15,25 +15,31 @@ struct GradientMask: View {
 
     let paddingSize: CGFloat
     let fadeSize: CGFloat
+    let enabled: Bool
 
     // MARK: - Initialization
 
-    init(padding: CGFloat, fade: CGFloat) {
+    init(padding: CGFloat, fade: CGFloat, enabled: Bool = true) {
         self.paddingSize = padding
         self.fadeSize = fade
+        self.enabled = enabled
     }
 
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            Color.clear
-                .frame(height: paddingSize - fadeSize)
-            gradient(from: .top, to: .bottom)
+        if enabled {
+            VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: paddingSize - fadeSize)
+                gradient(from: .top, to: .bottom)
+                Color.white
+                gradient(from: .bottom, to: .top)
+                Color.clear
+                    .frame(height: paddingSize - fadeSize)
+            }
+        } else {
             Color.white
-            gradient(from: .bottom, to: .top)
-            Color.clear
-                .frame(height: paddingSize - fadeSize)
         }
     }
 
