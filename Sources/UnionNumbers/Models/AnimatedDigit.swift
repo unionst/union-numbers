@@ -23,6 +23,11 @@ struct AnimatedDigit: Identifiable, Equatable, Sendable {
         "\(digitIndex)-\(char)"
     }
 
+    /// Whether this character is a symbol (not a digit or separator)
+    var isSymbol: Bool {
+        !char.isNumber && char != "," && char != "."
+    }
+
     // MARK: - Initialization
 
     init(

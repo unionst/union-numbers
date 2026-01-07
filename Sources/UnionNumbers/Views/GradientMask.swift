@@ -15,12 +15,14 @@ struct GradientMask: View {
 
     let paddingSize: CGFloat
     let fadeSize: CGFloat
+    let feathered: Bool
 
     // MARK: - Initialization
 
-    init(padding: CGFloat, fade: CGFloat) {
+    init(padding: CGFloat, fade: CGFloat, feathered: Bool = true) {
         self.paddingSize = padding
         self.fadeSize = fade
+        self.feathered = feathered
     }
 
     // MARK: - Body
@@ -29,9 +31,19 @@ struct GradientMask: View {
         VStack(spacing: 0) {
             Color.clear
                 .frame(height: paddingSize - fadeSize)
-            gradient(from: .top, to: .bottom)
+            if feathered {
+                gradient(from: .top, to: .bottom)
+            } else {
+                Color.white
+                    .frame(height: fadeSize)
+            }
             Color.white
-            gradient(from: .bottom, to: .top)
+            if feathered {
+                gradient(from: .bottom, to: .top)
+            } else {
+                Color.white
+                    .frame(height: fadeSize)
+            }
             Color.clear
                 .frame(height: paddingSize - fadeSize)
         }

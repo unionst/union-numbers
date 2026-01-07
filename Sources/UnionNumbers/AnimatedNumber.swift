@@ -21,6 +21,18 @@ private struct ShakeTriggerKey: EnvironmentKey {
     static let defaultValue: Int = 0
 }
 
+private struct FeatheredEdgesKey: EnvironmentKey {
+    static let defaultValue: Bool = true
+}
+
+private struct PlaceholderOpacityKey: EnvironmentKey {
+    static let defaultValue: Double = 0.1
+}
+
+private struct SymbolFontKey: EnvironmentKey {
+    static let defaultValue: Font? = nil
+}
+
 extension EnvironmentValues {
     var animatedNumberHapticFeedback: Bool {
         get { self[HapticFeedbackKey.self] }
@@ -30,6 +42,21 @@ extension EnvironmentValues {
     var animatedNumberShakeTrigger: Int {
         get { self[ShakeTriggerKey.self] }
         set { self[ShakeTriggerKey.self] = newValue }
+    }
+
+    var animatedNumberFeatheredEdges: Bool {
+        get { self[FeatheredEdgesKey.self] }
+        set { self[FeatheredEdgesKey.self] = newValue }
+    }
+
+    var animatedNumberPlaceholderOpacity: Double {
+        get { self[PlaceholderOpacityKey.self] }
+        set { self[PlaceholderOpacityKey.self] = newValue }
+    }
+
+    var animatedNumberSymbolFont: Font? {
+        get { self[SymbolFontKey.self] }
+        set { self[SymbolFontKey.self] = newValue }
     }
 }
 
@@ -380,5 +407,45 @@ public extension View {
     /// ```
     func shakeTrigger(_ trigger: Int) -> some View {
         environment(\.animatedNumberShakeTrigger, trigger)
+    }
+
+    /// Enables or disables feathered edges on the animated number.
+    ///
+    /// When enabled (the default), a gradient mask fades the top and bottom edges
+    /// of the digits, creating a slot-machine style effect. Disable this when
+    /// displaying the number on a non-solid background.
+    ///
+    /// ```swift
+    /// AnimatedNumber(42)
+    ///     .featheredEdges(false)
+    /// ```
+    func featheredEdges(_ enabled: Bool) -> some View {
+        environment(\.animatedNumberFeatheredEdges, enabled)
+    }
+
+    /// Sets the opacity for placeholder digits.
+    ///
+    /// Placeholder digits are shown for fractional zeros that weren't typed
+    /// and for the initial "0" state.
+    ///
+    /// ```swift
+    /// AnimatedNumber(text: $amount, format: .number)
+    ///     .placeholderOpacity(0.1)
+    /// ```
+    func placeholderOpacity(_ opacity: Double) -> some View {
+        environment(\.animatedNumberPlaceholderOpacity, opacity)
+    }
+
+    /// Sets a custom font for currency symbols and other non-numeric characters.
+    ///
+    /// Use this to make the dollar sign or other currency symbols smaller
+    /// while preserving the font family. The symbol is detected automatically.
+    ///
+    /// ```swift
+    /// AnimatedNumber(price, format: .currency(code: "USD"))
+    ///     .symbolFont(.system(size: 24, weight: .semibold, design: .rounded))
+    /// ```
+    func symbolFont(_ font: Font) -> some View {
+        environment(\.animatedNumberSymbolFont, font)
     }
 }

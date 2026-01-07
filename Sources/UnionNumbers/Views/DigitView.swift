@@ -22,11 +22,15 @@ struct DigitView: View {
     let isIncreasing: Bool
     let overallOpacity: Double
 
+    @Environment(\.animatedNumberPlaceholderOpacity) private var placeholderOpacity
+    @Environment(\.animatedNumberSymbolFont) private var symbolFont
+
     // MARK: - Body
 
     var body: some View {
         Text(String(digit.char))
-            .foregroundStyle(digit.isPlaceholder ? .secondary : .primary)
+            .font(digit.isSymbol ? symbolFont : nil)
+            .opacity(digit.isPlaceholder ? placeholderOpacity : 1.0)
             .opacity(overallOpacity)
             .contentTransition(.interpolate)
             .animation(.spring(duration: 0.35), value: digit.isPlaceholder)
