@@ -1,169 +1,106 @@
 # UnionNumbers
 
-A SwiftUI library for smoothly animating numeric values with a simple modifier API.
+A SwiftUI library for smoothly animating numeric values with slot-machine style digit transitions.
 
 ## Requirements
 
-- iOS 17.0+ / macOS 10.15+
+- iOS 17.0+ / macOS 14.0+
 - Swift 6.1+
 
 ## Installation
 
 ### Swift Package Manager
 
-Add UnionNumbers to your project using Swift Package Manager:
-
 ```swift
 dependencies: [
-    .package(url: "https://github.com/unionst/union-numbers.git", from: "0.0.1")
+    .package(url: "https://github.com/unionst/union-numbers.git", from: "1.0.0")
 ]
 ```
 
 ## Usage
 
-Import the package in your SwiftUI file:
-
 ```swift
 import UnionNumbers
 ```
 
-### Using the numberCounting Modifier
-
-Apply the `numberCounting` modifier to any view to display animated numeric values. Pass `nil` to disable animation. You should also apply `.contentTransition(.numericText())` for smooth animations:
+### Basic
 
 ```swift
-Text("Placeholder")
-    .numberCounting(count)
-    .contentTransition(.numericText())
-    .animation(.spring(), value: count)
+AnimatedNumber(count)
+    .font(.system(size: 48, weight: .bold))
     .monospacedDigit()
 ```
 
-## Examples
-
-### Simple Counter
+### Currency
 
 ```swift
-struct CounterView: View {
-    @State private var count = 0
-    
+AnimatedNumber(price, format: .currency(code: "USD"))
+    .font(.system(size: 48))
+```
+
+### With Bounds
+
+When the value exceeds the range, it reverts and shakes with haptic feedback:
+
+```swift
+AnimatedNumber(value: $price, in: 0...1000, format: .currency(code: "USD"))
+    .font(.system(size: 48))
+```
+
+### Disable Haptic Feedback
+
+Shake always occurs, but haptic can be disabled:
+
+```swift
+AnimatedNumber(value: $price, in: 0...1000)
+    .hapticFeedback(false)
+```
+
+### Full Example
+
+```swift
+struct ContentView: View {
+    @State private var price = 50.0
+
     var body: some View {
         VStack {
-            Text("Placeholder")
-                .numberCounting(count)
+            AnimatedNumber(value: $price, in: 0...100, format: .currency(code: "USD"))
                 .font(.system(size: 48, weight: .bold))
-                .contentTransition(.numericText())
-                .animation(.spring(), value: count)
                 .monospacedDigit()
-            
+
             HStack {
-                Button("Subtract") {
-                    count -= 10
-                }
-                
-                Button("Add") {
-                    count += 10
-                }
+                Button("-$10") { price -= 10 }
+                Button("+$10") { price += 10 }
             }
-        }
-        .padding()
-    }
-}
-```
 
-### With Step Values
-
-```swift
-struct SteppedCounterView: View {
-    @State private var value = 0.0
-    
-    var body: some View {
-        VStack {
-            Text("Placeholder")
-                .numberCounting(
-                    value,
-                    step: 5,
-                    maxSteps: 20
-                )
-                .font(.largeTitle)
-                .contentTransition(.numericText())
-                .animation(.easeInOut, value: value)
-                .monospacedDigit()
-            
-            Slider(value: $value, in: 0...200)
-                .padding()
+            Text("Try going below $0 or above $100")
+                .foregroundStyle(.secondary)
         }
     }
 }
 ```
 
-### Conditional Animation
+## API
+
+### Display Only
 
 ```swift
-struct ConditionalAnimationView: View {
-    @State private var score = 0
-    @State private var animateNumbers = true
-    
-    var body: some View {
-        VStack {
-            Text("Placeholder")
-                .numberCounting(animateNumbers ? score : nil)
-                .contentTransition(.numericText())
-                .animation(.default, value: score)
-            
-            Toggle("Animate Numbers", isOn: $animateNumbers)
-                .padding()
-            
-            Button("Increase Score") {
-                score += 100
-            }
-        }
-    }
-}
+AnimatedNumber(_ value: Double)
+AnimatedNumber(_ value: Double, format: FormatStyle)
 ```
 
-## API Reference
-
-### numberCounting Modifier
+### With Bounds Validation
 
 ```swift
-func numberCounting(
-    _ value: Double?,
-    step: Double? = nil,
-    maxSteps: Int? = nil
-) -> some View
-
-func numberCounting(
-    _ value: Int?,
-    step: Double? = nil,
-    maxSteps: Int? = nil
-) -> some View
+AnimatedNumber(value: Binding<Double>, in: ClosedRange<Double>)
+AnimatedNumber(value: Binding<Double>, in: ClosedRange<Double>, format: FormatStyle)
 ```
 
-#### Parameters
+### Modifiers
 
-- `value`: The numeric value to animate, or `nil` to disable animation
-- `step`: Optional step size for rounding animated values
-- `maxSteps`: Optional maximum number of steps to animate
-
-#### Usage Notes
-
-- Pass `nil` as the value to disable animation and show original content
-- Always apply `.contentTransition(.numericText())` for smooth number transitions
-- Use `.monospacedDigit()` to prevent layout shifts during animation
-- Apply `.animation()` with your desired timing to control animation speed
-
-## Features
-
-- ✨ Simple modifier-based API
-- 🎯 Smooth animations between numeric values
-- 🎨 Fully customizable text styling
-- 🚀 Optimized for SwiftUI's animation system
-- 📱 Support for iOS 17+ content transitions
-- 🔢 Works with both Int and Double values
-- ⚡ Step-based animation control
-- 🎛️ Maximum step limiting
-- 🔄 Easy enable/disable with optional values
+```swift
+.hapticFeedback(false)  // Disable haptic on bounds error (shake still occurs)
+```
 
 ## License
 
